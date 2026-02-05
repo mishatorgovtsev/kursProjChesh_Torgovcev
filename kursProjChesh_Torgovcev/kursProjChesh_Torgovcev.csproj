@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="ChessDotNet" Version="1.0.0" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.1" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.1" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
