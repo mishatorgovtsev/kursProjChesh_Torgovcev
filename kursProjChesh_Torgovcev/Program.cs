@@ -33,6 +33,7 @@ app.UseAuthorization();
 // ДОБАВЛЯЕМ маршрут для Hub
 app.MapHub<GameHub>("/gameHub");
 
+app.UseStaticFiles();
 app.MapControllers();
 
 app.Run();
