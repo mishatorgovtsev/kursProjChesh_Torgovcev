@@ -46,18 +46,22 @@ public class GamesController : ControllerBase
     {
         var game = _dbContext.Games.Find(id);
         if (game == null)
-            return NotFound("Игра не найдена");
+            return NotFound(new { success = false, error = "Игра не найдена" });
 
-        // Проверяем ход через ChessService
-        var result = _chessService.MakeMove(request.From, request.To);
-        
+        // Восстанавливаем состояние доски из БД
+        var chessService = new ChessService();
+        chessService.LoadPosition(game.CurrentFEN);
+
+        // Проверяем ход
+        var result = chessService.MakeMove(request.From, request.To);
+    
         if (!result.success)
-            return BadRequest("Недопустимый ход");
+            return BadRequest(new { success = false, error = "Недопустимый ход" });
 
         // Обновляем игру в БД
         game.CurrentFEN = result.newFen;
         game.LastMoveAt = DateTime.Now;
-        
+    
         // Добавляем ход в историю
         var move = new GameMove
         {
@@ -67,7 +71,7 @@ public class GamesController : ControllerBase
             MoveNotation = result.pgnMove,
             FENAfterMove = result.newFen
         };
-        
+    
         _dbContext.GameMoves.Add(move);
         _dbContext.SaveChanges();
 
@@ -75,7 +79,7 @@ public class GamesController : ControllerBase
         { 
             success = true, 
             newFen = result.newFen, 
-            isGameOver = _chessService.IsGameOver() 
+            isGameOver = chessService.IsGameOver() 
         });
     }
 
@@ -87,7 +91,7 @@ public class GamesController : ControllerBase
     {
         var game = _dbContext.Games.Find(id);
         if (game == null)
-            return NotFound();
+            return NotFound(new { success = false, error = "Игра не найдена" });  // ← JSON!
 
         return Ok(new 
         { 
@@ -111,7 +115,7 @@ public class CreateGameRequest
 
 public class MoveRequest
 {
-    public string From { get; set; } = string.Empty;  // e2
-    public string To { get; set; } = string.Empty;    // e4
-    public string Color { get; set; } = "w";          // w или b
+    public string From { get; set; } = string.Empty;
+    public string To { get; set; } = string.Empty;
+    public string Color { get; set; } = "w";
 }

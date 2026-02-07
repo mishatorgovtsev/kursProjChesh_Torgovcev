@@ -4,11 +4,17 @@ namespace kursProjChesh_Torgovcev.services;
 
 public class ChessService
 {
-    private readonly ChessGame _game;
+    private ChessGame _game;
     
     public ChessService()
     {
         _game = new ChessGame();
+    }
+    
+    // Загрузить позицию из FEN (для восстановления состояния игры)
+    public void LoadPosition(string fen)
+    {
+        _game = new ChessGame(fen);
     }
     
     public (bool success, string newFen, string pgnMove) MakeMove(string from, string to)
