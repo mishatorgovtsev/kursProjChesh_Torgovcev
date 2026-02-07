@@ -1,146 +1,217 @@
-﻿console.log('=== app.js started ===');
-
+﻿// === Глобальные переменные ===
 var board = null;
-var currentGameId = null;  // ID текущей игры
+var currentGameId = null;
+var currentUser = null;
+var isProcessing = false; // Флаг блокировки
 
 // === API функции ===
 
-// Создать новую игру
+// Регистрация
+async function register() {
+    if (isProcessing) return; // Если уже обрабатывается - выходим
+
+    const btn = document.querySelector('#register-form button');
+    btn.disabled = true;
+    isProcessing = true;
+
+    const username = document.getElementById('reg-username').value;
+    const email = document.getElementById('reg-email').value;
+    const password = document.getElementById('reg-password').value;
+
+    // Простая валидация
+    if (!username || !email || !password) {
+        document.getElementById('reg-error').textContent = 'Заполните все поля';
+        btn.disabled = false;
+        isProcessing = false;
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/Users/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert('Регистрация успешна! Войдите в систему.');
+            showLogin();
+            // Очищаем поля
+            document.getElementById('reg-username').value = '';
+            document.getElementById('reg-email').value = '';
+            document.getElementById('reg-password').value = '';
+            document.getElementById('reg-error').textContent = '';
+        } else {
+            document.getElementById('reg-error').textContent = data.error || 'Ошибка регистрации';
+        }
+    } catch (error) {
+        document.getElementById('reg-error').textContent = 'Ошибка сети';
+    } finally {
+        btn.disabled = false;
+        isProcessing = false;
+    }
+}
+
+// Вход
+async function login() {
+    if (isProcessing) return;
+
+    const btn = document.querySelector('#login-form button');
+    btn.disabled = true;
+    isProcessing = true;
+
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+
+    if (!username || !password) {
+        document.getElementById('login-error').textContent = 'Введите имя пользователя и пароль';
+        btn.disabled = false;
+        isProcessing = false;
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/Users/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            currentUser = data;
+            localStorage.setItem('user', JSON.stringify(data));
+            showGameSection();
+        } else {
+            document.getElementById('login-error').textContent = data.error || 'Неверные данные';
+        }
+    } catch (error) {
+        document.getElementById('login-error').textContent = 'Ошибка сети';
+    } finally {
+        btn.disabled = false;
+        isProcessing = false;
+    }
+}
+
+// Выход
+function logout() {
+    currentUser = null;
+    localStorage.removeItem('user');
+    showAuthSection();
+}
+
+// === UI функции ===
+
+function showLogin() {
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('register-form').style.display = 'none';
+    document.getElementById('login-error').textContent = '';
+    isProcessing = false;
+}
+
+function showRegister() {
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('register-form').style.display = 'block';
+    document.getElementById('reg-error').textContent = '';
+    isProcessing = false;
+}
+
+function showGameSection() {
+    document.getElementById('auth-section').style.display = 'none';
+    document.getElementById('game-section').style.display = 'block';
+    document.getElementById('current-user').textContent = currentUser.username + ' (' + currentUser.rating + ')';
+    initBoard();
+}
+
+function showAuthSection() {
+    document.getElementById('auth-section').style.display = 'block';
+    document.getElementById('game-section').style.display = 'none';
+    showLogin();
+}
+
+// === Игра ===
+
+function initBoard() {
+    board = Chessboard('board', {
+        position: 'start',
+        draggable: true,
+        dropOffBoard: 'snapback',
+        pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+        onDrop: onDrop
+    });
+
+    createGame(currentUser.userId, 2);
+}
+
 async function createGame(whitePlayerId, blackPlayerId) {
     try {
         const response = await fetch('/api/games/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                whitePlayerId: whitePlayerId,
-                blackPlayerId: blackPlayerId
-            })
+            body: JSON.stringify({ whitePlayerId, blackPlayerId })
         });
 
         const data = await response.json();
         currentGameId = data.gameId;
         console.log('Игра создана:', data);
-        return data;
     } catch (error) {
         console.error('Ошибка создания игры:', error);
     }
 }
 
-// Отправить ход на сервер
-async function sendMove(from, to) {
-    if (!currentGameId) {
-        console.error('Нет активной игры');
-        return;
-    }
+async function onDrop(source, target) {
+    if (source === target) return 'snapback';
 
     try {
         const response = await fetch(`/api/games/${currentGameId}/move`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                from: from,
-                to: to,
+                from: source,
+                to: target,
                 color: board.orientation() === 'white' ? 'w' : 'b'
             })
         });
 
-        // Проверяем статус ответа
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Ошибка сервера:', errorText);
-            // Возвращаем фигуру назад
-            board.position(board.position(), false);
-            return;
-        }
-
         const data = await response.json();
-        console.log('Ответ сервера:', data);
 
-        if (data.success) {
-            updateTurn();
-            if (data.isGameOver) {
-                alert('Игра окончена!');
-            }
-        } else {
-            console.error('Недопустимый ход');
-            // Возвращаем доску в предыдущее состояние
-            board.position(data.newFen || board.position(), false);
+        if (!data.success) {
+            return 'snapback';
         }
 
-        return data;
+        updateTurn();
+
+        if (data.isGameOver) {
+            alert('Игра окончена!');
+        }
     } catch (error) {
-        console.error('Ошибка отправки хода:', error);
-        // При ошибке сети тоже возвращаем фигуру
-        board.position(board.position(), false);
+        console.error('Ошибка хода:', error);
+        return 'snapback';
     }
 }
 
-// Получить состояние игры
-async function getGame(gameId) {
-    try {
-        const response = await fetch(`/api/games/${gameId}`);
-        const data = await response.json();
-        console.log('Состояние игры:', data);
+function updateTurn() {
+    var turnSpan = document.getElementById('turn');
+    turnSpan.textContent = turnSpan.textContent === 'Белые' ? 'Чёрные' : 'Белые';
+}
 
-        if (data.currentFEN) {
-            board.position(data.currentFEN);
-        }
-
-        return data;
-    } catch (error) {
-        console.error('Ошибка получения игры:', error);
-    }
+function resetBoard() {
+    board.start();
+    document.getElementById('turn').textContent = 'Белые';
+    createGame(currentUser.userId, 2);
 }
 
 // === Инициализация ===
 
 $(document).ready(function() {
-    console.log('=== document ready ===');
-
-    // Создаём доску
-    board = Chessboard('board', {
-        position: 'start',
-        draggable: true,
-        dropOffBoard: 'snapback',
-        pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
-        onDrop: onDrop  // Обработчик хода
-    });
-
-    console.log('Board created successfully:', board);
-
-    // Автоматически создаём тестовую игру (временно)
-    // В реальности здесь будет вход в систему и выбор соперника
-    createGame(1, 2);  // Тестовые ID игроков
-});
-
-// Обработка хода
-function onDrop(source, target, piece, newPos, oldPos, orientation) {
-    console.log('Ход:', source, '->', target);
-
-    // Нельзя ходить на ту же клетку
-    if (source === target) return 'snapback';
-
-    // Отправляем на сервер
-    sendMove(source, target);
-
-    // Пока сервер не ответил, разрешаем ход (оптимистично)
-    // Если сервер вернёт ошибку — доска откатится
-}
-
-// Смена хода (визуально)
-function updateTurn() {
-    var turnSpan = document.getElementById('turn');
-    if (turnSpan) {
-        turnSpan.textContent = turnSpan.textContent === 'Белые' ? 'Чёрные' : 'Белые';
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        showGameSection();
+    } else {
+        showAuthSection();
     }
-}
-
-// Новая игра
-function resetBoard() {
-    console.log('resetBoard called');
-    board.start();
-    document.getElementById('turn').textContent = 'Белые';
-    createGame(1, 2);  // Создаём новую игру
-}
-
-console.log('=== app.js finished ===');
+});
