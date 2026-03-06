@@ -48,7 +48,7 @@ public class TournamentsController : ControllerBase
     public async Task<IActionResult> JoinTournament(int id, [FromBody] JoinTournamentRequest request)
     {
         var tournament = await _dbContext.Tournaments.FindAsync(id);
-        
+
         if (tournament == null)
             return NotFound("Турнир не найден");
 
@@ -58,10 +58,9 @@ public class TournamentsController : ControllerBase
         if (tournament.CurrentParticipants >= tournament.MaxParticipants)
             return BadRequest("Все места заняты");
 
-        // Проверяем не зарегистрирован ли уже
         var existing = await _dbContext.TournamentParticipants
             .FirstOrDefaultAsync(tp => tp.TournamentId == id && tp.UserId == request.UserId);
-        
+
         if (existing != null)
             return BadRequest("Вы уже участвуете в этом турнире");
 
@@ -75,14 +74,14 @@ public class TournamentsController : ControllerBase
 
         _dbContext.TournamentParticipants.Add(participant);
         tournament.CurrentParticipants++;
-        
+
         await _dbContext.SaveChangesAsync();
 
         return Ok(new { message = "Вы присоединились к турниру" });
     }
 
     /// <summary>
-    /// Получить список активных турниров
+    /// Получить список турниров
     /// </summary>
     [HttpGet("list")]
     public async Task<IActionResult> GetTournaments([FromQuery] string status = "Registration")
@@ -159,11 +158,9 @@ public class TournamentsController : ControllerBase
         if (tournament.Participants.Count < 2)
             return BadRequest("Недостаточно участников");
 
-        // Закрываем регистрацию
         tournament.Status = "InProgress";
         tournament.TotalRounds = (int)Math.Log2(tournament.MaxParticipants);
 
-        // Создаём сетку (олимпийская система)
         await GenerateBracket(tournament);
 
         await _dbContext.SaveChangesAsync();
@@ -189,6 +186,7 @@ public class TournamentsController : ControllerBase
                 tm.Id,
                 tm.RoundNumber,
                 tm.MatchNumber,
+                tm.NextMatchId,
                 Player1 = tm.Player1 != null ? new { tm.Player1.Id, tm.Player1.Username } : null,
                 Player2 = tm.Player2 != null ? new { tm.Player2.Id, tm.Player2.Username } : null,
                 Winner = tm.Winner != null ? new { tm.Winner.Id, tm.Winner.Username } : null,
@@ -200,34 +198,126 @@ public class TournamentsController : ControllerBase
         return Ok(matches);
     }
 
-    // Генерация олимпийской сетки
-    private async Task GenerateBracket(Tournament tournament)
+    /// <summary>
+    /// Завершить матч и продвинуть победителя в следующий раунд
+    /// </summary>
+    [HttpPost("{tournamentId}/matches/{matchId}/complete")]
+    public async Task<IActionResult> CompleteMatch(int tournamentId, int matchId, [FromBody] CompleteMatchRequest request)
     {
-        int participantsCount = tournament.Participants.Count;
-        int rounds = (int)Math.Log2(tournament.MaxParticipants);
-        int matchesInFirstRound = tournament.MaxParticipants / 2;
+        var match = await _dbContext.TournamentMatches
+            .Include(m => m.Tournament)
+            .FirstOrDefaultAsync(m => m.Id == matchId && m.TournamentId == tournamentId);
 
-        // Создаём матчи первого раунда
-        var participants = tournament.Participants.OrderBy(p => p.SeedNumber).ToList();
-        
-        for (int i = 0; i < matchesInFirstRound; i++)
+        if (match == null)
+            return NotFound("Матч не найден");
+
+        if (match.Status == "Completed")
+            return BadRequest("Матч уже завершён");
+
+        // Проверяем что победитель является участником матча
+        if (request.WinnerId != match.Player1Id && request.WinnerId != match.Player2Id)
+            return BadRequest("Победитель должен быть участником матча");
+
+        match.WinnerId = request.WinnerId;
+        match.Status = "Completed";
+
+        // Продвигаем победителя в следующий матч
+        if (match.NextMatchId != null)
         {
-            var match = new TournamentMatch
+            var nextMatch = await _dbContext.TournamentMatches.FindAsync(match.NextMatchId);
+            if (nextMatch != null)
             {
-                TournamentId = tournament.Id,
-                RoundNumber = 1,
-                MatchNumber = i + 1,
-                Player1Id = i * 2 < participants.Count ? participants[i * 2].UserId : null,
-                Player2Id = i * 2 + 1 < participants.Count ? participants[i * 2 + 1].UserId : null,
-                Status = "Pending"
-            };
+                if (nextMatch.Player1Id == null)
+                    nextMatch.Player1Id = request.WinnerId;
+                else
+                    nextMatch.Player2Id = request.WinnerId;
 
-            _dbContext.TournamentMatches.Add(match);
+                // Оба игрока известны — матч готов к игре
+                if (nextMatch.Player1Id != null && nextMatch.Player2Id != null)
+                    nextMatch.Status = "Ready";
+            }
+        }
+        else if (match.IsFinal)
+        {
+            // Финал завершён — закрываем турнир
+            match.Tournament.WinnerId = request.WinnerId;
+            match.Tournament.Status = "Completed";
         }
 
         await _dbContext.SaveChangesAsync();
-        
-        // TODO: Создать связи для следующих раундов (NextMatchId)
+
+        return Ok(new { message = "Матч завершён", winnerId = request.WinnerId });
+    }
+
+    // Генерация полной олимпийской сетки с NextMatchId
+    private async Task GenerateBracket(Tournament tournament)
+    {
+        var participants = tournament.Participants.OrderBy(p => p.SeedNumber).ToList();
+        int totalRounds = (int)Math.Log2(tournament.MaxParticipants);
+
+        // Словарь для быстрого доступа к матчам по (раунд, номер)
+        var allMatches = new Dictionary<(int round, int match), TournamentMatch>();
+
+        // Шаг 1: создаём все матчи всех раундов
+        for (int round = 1; round <= totalRounds; round++)
+        {
+            int matchesInRound = (int)Math.Pow(2, totalRounds - round);
+
+            for (int matchNum = 1; matchNum <= matchesInRound; matchNum++)
+            {
+                bool isFinal = (round == totalRounds);
+
+                var match = new TournamentMatch
+                {
+                    TournamentId = tournament.Id,
+                    RoundNumber = round,
+                    MatchNumber = matchNum,
+                    Status = "Pending",
+                    IsFinal = isFinal,
+                    Player1Id = null,
+                    Player2Id = null
+                };
+
+                allMatches[(round, matchNum)] = match;
+                _dbContext.TournamentMatches.Add(match);
+            }
+        }
+
+        // Сохраняем чтобы EF присвоил Id всем матчам
+        await _dbContext.SaveChangesAsync();
+
+        // Шаг 2: расставляем игроков в первом раунде
+        int matchesInFirstRound = (int)Math.Pow(2, totalRounds - 1);
+        for (int i = 0; i < matchesInFirstRound; i++)
+        {
+            var match = allMatches[(1, i + 1)];
+            match.Player1Id = i * 2 < participants.Count ? participants[i * 2].UserId : (int?)null;
+            match.Player2Id = i * 2 + 1 < participants.Count ? participants[i * 2 + 1].UserId : (int?)null;
+
+            // Bye: один игрок без соперника — автоматически проходит
+            if (match.Player1Id != null && match.Player2Id == null)
+            {
+                match.WinnerId = match.Player1Id;
+                match.Status = "Completed";
+            }
+        }
+
+        // Шаг 3: проставляем NextMatchId
+        // Победитель матча (round, matchNum) идёт в (round+1, ceil(matchNum/2))
+        for (int round = 1; round < totalRounds; round++)
+        {
+            int matchesInRound = (int)Math.Pow(2, totalRounds - round);
+
+            for (int matchNum = 1; matchNum <= matchesInRound; matchNum++)
+            {
+                int nextMatchNum = (int)Math.Ceiling(matchNum / 2.0);
+                var currentMatch = allMatches[(round, matchNum)];
+                var nextMatch = allMatches[(round + 1, nextMatchNum)];
+                currentMatch.NextMatchId = nextMatch.Id;
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
     }
 }
 
@@ -245,4 +335,9 @@ public class CreateTournamentRequest
 public class JoinTournamentRequest
 {
     public int UserId { get; set; }
+}
+
+public class CompleteMatchRequest
+{
+    public int WinnerId { get; set; }
 }

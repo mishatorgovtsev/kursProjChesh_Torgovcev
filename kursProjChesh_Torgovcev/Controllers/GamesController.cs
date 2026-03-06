@@ -2,6 +2,7 @@
 using kursProjChesh_Torgovcev.services;
 using ChessPlatform.Data;
 using ChessPlatform.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace kursProjChesh_Torgovcev.Controllers;
 
@@ -44,7 +45,7 @@ public class GamesController : ControllerBase
     [HttpPost("{id}/move")]
     public IActionResult MakeMove(int id, [FromBody] MoveRequest request)
     {
-        var game = _dbContext.Games.Find(id);
+        var game = _dbContext.Games.Include(g => g.Moves).FirstOrDefault(g => g.Id == id);
         if (game == null)
             return NotFound(new { success = false, error = "Игра не найдена" });
 
@@ -67,7 +68,7 @@ public class GamesController : ControllerBase
         {
             GameId = id,
             MoveNumber = game.Moves.Count + 1,
-            PlayerColor = request.Color,
+            PlayerColor = request.Color == "white" ? "w" : "b",
             MoveNotation = result.pgnMove,
             FENAfterMove = result.newFen
         };

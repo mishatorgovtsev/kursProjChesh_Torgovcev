@@ -1,0 +1,850 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Турнир — Chess Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f0f13;
+            --surface: #1a1a22;
+            --surface2: #22222e;
+            --border: #2e2e3e;
+            --accent: #c9a84c;
+            --accent2: #e8c96a;
+            --text: #e8e8f0;
+            --text-muted: #7a7a9a;
+            --green: #4caf74;
+            --red: #e05555;
+            --pending: #5577cc;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 32px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 22px;
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .header-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-left: 24px;
+            font-size: 14px;
+            transition: color .2s;
+        }
+        .header-nav a:hover { color: var(--text); }
+
+        /* ── Page ── */
+        .page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        /* ── Tournament selector ── */
+        .selector-bar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 36px;
+            flex-wrap: wrap;
+        }
+
+        select, input[type="number"] {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+            transition: border-color .2s;
+        }
+        select:hover, select:focus { border-color: var(--accent); }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #111;
+        }
+        .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+        .btn-secondary {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ── Tournament info card ── */
+        .tournament-info {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px 28px;
+            margin-bottom: 36px;
+            display: none;
+        }
+
+        .tournament-info.visible { display: block; }
+
+        .info-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .info-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 26px;
+            color: var(--accent);
+            margin-bottom: 6px;
+        }
+
+        .info-desc {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .info-badges {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .badge-status-Registration { background: rgba(85,119,204,.2); color: var(--pending); border: 1px solid rgba(85,119,204,.3); }
+        .badge-status-InProgress   { background: rgba(201,168,76,.15); color: var(--accent); border: 1px solid rgba(201,168,76,.3); }
+        .badge-status-Completed    { background: rgba(76,175,116,.15); color: var(--green); border: 1px solid rgba(76,175,116,.3); }
+
+        .info-stats {
+            display: flex;
+            gap: 28px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .stat { font-size: 13px; color: var(--text-muted); }
+        .stat strong { display: block; font-size: 18px; color: var(--text); margin-bottom: 2px; }
+
+        /* ── Bracket ── */
+        .bracket-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            margin-bottom: 24px;
+            color: var(--text);
+        }
+
+        .bracket-wrap {
+            overflow-x: auto;
+            padding-bottom: 16px;
+        }
+
+        .bracket {
+            display: flex;
+            gap: 0;
+            align-items: center;
+            min-width: max-content;
+        }
+
+        /* ── Round column ── */
+        .round-col {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .round-label {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            padding: 0 40px;
+        }
+
+        .round-matches {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        /* ── Match card ── */
+        .match-wrapper {
+            display: flex;
+            align-items: center;
+        }
+
+        .match-card {
+            width: 200px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            transition: border-color .2s, box-shadow .2s;
+            position: relative;
+        }
+
+        .match-card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(201,168,76,.2);
+        }
+
+        .match-card.is-final {
+            border-color: rgba(201,168,76,.4);
+            box-shadow: 0 0 20px rgba(201,168,76,.1);
+        }
+
+        .match-card.is-final::before {
+            content: '👑 Финал';
+            display: block;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .08em;
+            color: var(--accent);
+            background: rgba(201,168,76,.1);
+            padding: 5px;
+            border-bottom: 1px solid rgba(201,168,76,.2);
+        }
+
+        .match-player {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            font-size: 13px;
+            gap: 8px;
+            min-height: 42px;
+        }
+
+        .match-player + .match-player {
+            border-top: 1px solid var(--border);
+        }
+
+        .player-name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 130px;
+        }
+
+        .player-name.empty { color: var(--text-muted); font-style: italic; font-weight: 400; }
+
+        .player-crown {
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .match-player.winner {
+            background: rgba(76,175,116,.08);
+        }
+
+        .match-player.winner .player-name { color: var(--green); }
+
+        .match-status {
+            text-align: center;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .06em;
+        }
+
+        .match-status.Pending    { color: var(--text-muted); background: rgba(255,255,255,.03); }
+        .match-status.Ready      { color: var(--accent);     background: rgba(201,168,76,.08); }
+        .match-status.InProgress { color: var(--pending);    background: rgba(85,119,204,.1); }
+        .match-status.Completed  { color: var(--green);      background: rgba(76,175,116,.08); }
+
+        /* ── Connector lines ── */
+        .connector {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .connector svg {
+            display: block;
+        }
+
+        /* ── Winner banner ── */
+        .winner-banner {
+            margin-top: 36px;
+            background: linear-gradient(135deg, rgba(201,168,76,.15), rgba(201,168,76,.05));
+            border: 1px solid rgba(201,168,76,.3);
+            border-radius: 12px;
+            padding: 24px 32px;
+            text-align: center;
+            display: none;
+        }
+
+        .winner-banner.visible { display: block; }
+
+        .winner-banner .trophy { font-size: 48px; margin-bottom: 8px; }
+
+        .winner-banner h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 22px;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+
+        .winner-banner p { color: var(--text-muted); font-size: 14px; }
+
+        /* ── Complete match modal ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            display: none;
+        }
+        .modal-overlay.open { display: flex; }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px 32px;
+            width: 340px;
+            max-width: 95vw;
+        }
+
+        .modal h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: var(--accent);
+        }
+
+        .modal-players {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .modal-player-btn {
+            padding: 12px 16px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: left;
+            transition: all .2s;
+        }
+
+        .modal-player-btn:hover {
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(76,175,116,.08);
+        }
+
+        .modal-cancel {
+            width: 100%;
+            padding: 10px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .modal-cancel:hover { border-color: var(--red); color: var(--red); }
+
+        /* ── Empty / loading ── */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+        .empty-state p { font-size: 15px; }
+
+        .loader {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .loader.visible { display: block; }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 20px;
+            font-size: 14px;
+            z-index: 200;
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all .3s;
+            max-width: 320px;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { border-color: var(--green); color: var(--green); }
+        .toast.error   { border-color: var(--red);   color: var(--red); }
+    </style>
+</head>
+<body>
+
+<header>
+    <a href="/" class="logo">♟ Chess Platform</a>
+    <nav class="header-nav">
+        <a href="/">Главная</a>
+        <a href="/tournament.html" style="color:var(--accent)">Турниры</a>
+    </nav>
+</header>
+
+<div class="page">
+
+    <!-- Selector -->
+    <div class="selector-bar">
+        <label style="color:var(--text-muted);font-size:14px">Турнир ID:</label>
+        <input type="number" id="tid-input" value="1" min="1" style="width:80px">
+        <button class="btn btn-primary" onclick="loadTournament()">Загрузить</button>
+        <button class="btn btn-secondary" onclick="loadTournamentList()">Список турниров</button>
+    </div>
+
+    <!-- Tournament info -->
+    <div class="tournament-info" id="t-info">
+        <div class="info-header">
+            <div>
+                <div class="info-title" id="t-title">—</div>
+                <div class="info-desc" id="t-desc"></div>
+            </div>
+            <div class="info-badges">
+                <span class="badge" id="t-status-badge"></span>
+            </div>
+        </div>
+        <div class="info-stats">
+            <div class="stat"><strong id="t-participants">—</strong>Участников</div>
+            <div class="stat"><strong id="t-rounds">—</strong>Раундов</div>
+            <div class="stat"><strong id="t-time">—</strong>Контроль времени</div>
+        </div>
+    </div>
+
+    <!-- Winner banner -->
+    <div class="winner-banner" id="winner-banner">
+        <div class="trophy">🏆</div>
+        <h2 id="winner-name">—</h2>
+        <p>Победитель турнира</p>
+    </div>
+
+    <!-- Bracket -->
+    <div id="bracket-section">
+        <div class="loader" id="loader">Загружаем сетку…</div>
+        <div id="bracket-container"></div>
+    </div>
+
+</div>
+
+<!-- Complete match modal -->
+<div class="modal-overlay" id="modal">
+    <div class="modal">
+        <h3>Выбрать победителя</h3>
+        <div class="modal-players" id="modal-players"></div>
+        <button class="modal-cancel" onclick="closeModal()">Отмена</button>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+    const API = '';  // пустая строка = относительный путь (localhost:5000)
+
+    let currentTournamentId = null;
+    let currentMatches = [];
+    let modalMatchId = null;
+
+    // ── Helpers ──────────────────────────────────────────────────────────────────
+
+    function toast(msg, type = 'success') {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.className = `toast ${type} show`;
+        setTimeout(() => el.className = 'toast', 3000);
+    }
+
+    function setLoader(on) {
+        document.getElementById('loader').className = on ? 'loader visible' : 'loader';
+    }
+
+    // ── Load tournament ───────────────────────────────────────────────────────────
+
+    async function loadTournament() {
+        const id = parseInt(document.getElementById('tid-input').value);
+        if (!id) return toast('Введите ID турнира', 'error');
+        currentTournamentId = id;
+
+        setLoader(true);
+        document.getElementById('bracket-container').innerHTML = '';
+        document.getElementById('t-info').classList.remove('visible');
+        document.getElementById('winner-banner').classList.remove('visible');
+
+        try {
+            const [tRes, bRes] = await Promise.all([
+                fetch(`${API}/api/Tournaments/${id}`),
+                fetch(`${API}/api/Tournaments/${id}/bracket`)
+            ]);
+
+            if (!tRes.ok) throw new Error('Турнир не найден');
+
+            const tournament = await tRes.json();
+            const matches = await bRes.json();
+            currentMatches = matches;
+
+            renderInfo(tournament);
+            renderBracket(matches);
+
+            if (tournament.status === 'Completed' || currentMatches.some(m => m.isFinal && m.winner)) {
+                showWinner(tournament);
+            }
+
+        } catch (e) {
+            document.getElementById('bracket-container').innerHTML =
+                `<div class="empty-state"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
+            toast(e.message, 'error');
+        } finally {
+            setLoader(false);
+        }
+    }
+
+    // ── Render info card ──────────────────────────────────────────────────────────
+
+    function renderInfo(t) {
+        document.getElementById('t-title').textContent = t.title;
+        document.getElementById('t-desc').textContent = t.description || '';
+
+        const badge = document.getElementById('t-status-badge');
+        const statusMap = { Registration: 'Регистрация', InProgress: 'В процессе', Completed: 'Завершён', Cancelled: 'Отменён' };
+        badge.textContent = statusMap[t.status] || t.status;
+        badge.className = `badge badge-status-${t.status}`;
+
+        document.getElementById('t-participants').textContent = `${t.currentParticipants} / ${t.maxParticipants}`;
+        document.getElementById('t-rounds').textContent = t.totalRounds ?? Math.round(Math.log2(t.maxParticipants));
+        document.getElementById('t-time').textContent = `${t.timeControlMinutes} мин`;
+
+        document.getElementById('t-info').classList.add('visible');
+    }
+
+    // ── Render bracket ────────────────────────────────────────────────────────────
+
+    function renderBracket(matches) {
+        const container = document.getElementById('bracket-container');
+
+        if (!matches || matches.length === 0) {
+            container.innerHTML = `<div class="empty-state"><div class="icon">🏁</div><p>Сетка ещё не сгенерирована.<br>Запустите турнир через API.</p></div>`;
+            return;
+        }
+
+        // Группируем по раундам
+        const rounds = {};
+        matches.forEach(m => {
+            if (!rounds[m.roundNumber]) rounds[m.roundNumber] = [];
+            rounds[m.roundNumber].push(m);
+        });
+
+        const roundNumbers = Object.keys(rounds).map(Number).sort((a, b) => a - b);
+        const totalRounds = roundNumbers.length;
+
+        // Названия раундов
+        const roundNames = {};
+        roundNumbers.forEach((r, i) => {
+            const remaining = totalRounds - i;
+            if (remaining === 1) roundNames[r] = 'Финал';
+            else if (remaining === 2) roundNames[r] = 'Полуфинал';
+            else if (remaining === 3) roundNames[r] = 'Четвертьфинал';
+            else roundNames[r] = `Раунд ${r}`;
+        });
+
+        // Строим HTML
+        const bracketEl = document.createElement('div');
+        bracketEl.className = 'bracket';
+
+        roundNumbers.forEach((roundNum, roundIdx) => {
+            const roundMatches = rounds[roundNum].sort((a, b) => a.matchNumber - b.matchNumber);
+            const matchesCount = roundMatches.length;
+
+            // Высота одного матча
+            const CARD_H = 110; // px (примерная высота карточки)
+            const totalPrev = roundIdx > 0 ? rounds[roundNumbers[roundIdx - 1]].length : matchesCount;
+            const gap = roundIdx === 0 ? 16 : ((totalPrev / matchesCount) * (CARD_H + 16) - CARD_H);
+
+            const roundCol = document.createElement('div');
+            roundCol.className = 'round-col';
+
+            // Лейбл
+            const label = document.createElement('div');
+            label.className = 'round-label';
+            label.textContent = roundNames[roundNum];
+            roundCol.appendChild(label);
+
+            // Матчи
+            const matchesEl = document.createElement('div');
+            matchesEl.className = 'round-matches';
+            matchesEl.style.gap = `${Math.max(gap, 16)}px`;
+
+            roundMatches.forEach(match => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'match-wrapper';
+
+                const card = document.createElement('div');
+                card.className = `match-card ${match.isFinal ? 'is-final' : ''}`;
+
+                // Player 1
+                card.appendChild(renderPlayer(match, match.player1, match.winner));
+                // Player 2
+                card.appendChild(renderPlayer(match, match.player2, match.winner));
+
+                // Status bar
+                const statusBar = document.createElement('div');
+                const statusTextMap = { Pending: 'Ожидание', Ready: 'Готов', InProgress: 'Идёт', Completed: 'Завершён' };
+                statusBar.className = `match-status ${match.status}`;
+                statusBar.textContent = statusTextMap[match.status] || match.status;
+                card.appendChild(statusBar);
+
+                // Click to complete (only Ready/Pending with both players)
+                if (match.status !== 'Completed' && match.player1 && match.player2) {
+                    card.style.cursor = 'pointer';
+                    card.title = 'Нажмите чтобы завершить матч';
+                    card.addEventListener('click', () => openModal(match));
+                }
+
+                wrapper.appendChild(card);
+                matchesEl.appendChild(wrapper);
+            });
+
+            roundCol.appendChild(matchesEl);
+            bracketEl.appendChild(roundCol);
+
+            // Connector between rounds
+            if (roundIdx < roundNumbers.length - 1) {
+                const connector = buildConnector(matchesCount, CARD_H, gap);
+                bracketEl.appendChild(connector);
+            }
+        });
+
+        container.innerHTML = '';
+        const wrap = document.createElement('div');
+        wrap.className = 'bracket-wrap';
+        wrap.appendChild(bracketEl);
+        container.appendChild(wrap);
+    }
+
+    function renderPlayer(match, player, winner) {
+        const div = document.createElement('div');
+        const isWinner = winner && player && winner.id === player.id;
+        div.className = `match-player ${isWinner ? 'winner' : ''}`;
+
+        const name = document.createElement('span');
+        name.className = `player-name ${!player ? 'empty' : ''}`;
+        name.textContent = player ? player.username : 'TBD';
+
+        const crown = document.createElement('span');
+        crown.className = 'player-crown';
+        crown.textContent = isWinner ? '✓' : '';
+
+        div.appendChild(name);
+        div.appendChild(crown);
+        return div;
+    }
+
+    function buildConnector(matchCount, cardH, gap) {
+        const connEl = document.createElement('div');
+        connEl.className = 'connector';
+
+        const W = 40;
+        const pairH = (cardH + gap) * 2;
+
+        let svgH = matchCount * (cardH + gap) + 16;
+        if (matchCount === 1) svgH = cardH + 32;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', W);
+        svg.setAttribute('height', svgH);
+        svg.style.marginTop = '38px'; // offset for round label
+
+        const pairs = Math.ceil(matchCount / 2);
+        for (let i = 0; i < pairs; i++) {
+            const topY = i * pairH + cardH / 2 + 8;
+            const botY = topY + (cardH + gap);
+            const midY = (topY + botY) / 2;
+            const outY = midY;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', `M0,${topY} H${W/2} V${botY} M${W/2},${midY} H${W}`);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', '#2e2e3e');
+            path.setAttribute('stroke-width', '1.5');
+            svg.appendChild(path);
+        }
+
+        if (matchCount === 1) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            const y = cardH / 2 + 8;
+            line.setAttribute('x1', 0); line.setAttribute('y1', y);
+            line.setAttribute('x2', W); line.setAttribute('y2', y);
+            line.setAttribute('stroke', '#2e2e3e');
+            line.setAttribute('stroke-width', '1.5');
+            svg.appendChild(line);
+        }
+
+        connEl.appendChild(svg);
+        return connEl;
+    }
+
+    // ── Winner banner ─────────────────────────────────────────────────────────────
+
+    function showWinner(tournament) {
+        const banner = document.getElementById('winner-banner');
+        const finalMatch = currentMatches.find(m => m.isFinal && m.winner);
+        if (finalMatch) {
+            document.getElementById('winner-name').textContent = finalMatch.winner.username;
+            banner.classList.add('visible');
+        }
+    }
+
+    // ── Modal ─────────────────────────────────────────────────────────────────────
+
+    function openModal(match) {
+        modalMatchId = match.id;
+        const playersEl = document.getElementById('modal-players');
+        playersEl.innerHTML = '';
+
+        [match.player1, match.player2].forEach(p => {
+            if (!p) return;
+            const btn = document.createElement('button');
+            btn.className = 'modal-player-btn';
+            btn.textContent = `🏆  ${p.username}`;
+            btn.onclick = () => completeMatch(match.id, p.id);
+            playersEl.appendChild(btn);
+        });
+
+        document.getElementById('modal').classList.add('open');
+    }
+
+    function closeModal() {
+        document.getElementById('modal').classList.remove('open');
+        modalMatchId = null;
+    }
+
+    async function completeMatch(matchId, winnerId) {
+        closeModal();
+        try {
+            const res = await fetch(`${API}/api/Tournaments/${currentTournamentId}/matches/${matchId}/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ winnerId })
+            });
+
+            if (!res.ok) {
+                const err = await res.text();
+                throw new Error(err);
+            }
+
+            toast('Матч завершён, победитель продвинут!', 'success');
+            await loadTournament(); // перезагружаем сетку
+
+        } catch (e) {
+            toast(e.message || 'Ошибка', 'error');
+        }
+    }
+
+    // ── Tournament list ───────────────────────────────────────────────────────────
+
+    async function loadTournamentList() {
+        try {
+            const res = await fetch(`${API}/api/Tournaments/list?status=InProgress`);
+            const list = await res.json();
+
+            if (list.length === 0) {
+                toast('Нет активных турниров', 'error');
+                return;
+            }
+
+            // Берём первый активный и загружаем
+            document.getElementById('tid-input').value = list[0].id;
+            loadTournament();
+
+        } catch {
+            toast('Ошибка загрузки списка', 'error');
+        }
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────────
+
+    // Закрыть модал кликом вне
+    document.getElementById('modal').addEventListener('click', e => {
+        if (e.target === document.getElementById('modal')) closeModal();
+    });
+
+    // Загружаем турнир из URL параметра если есть
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlId = urlParams.get('id');
+    if (urlId) {
+        document.getElementById('tid-input').value = urlId;
+        loadTournament();
+    }
+</script>
+</body>
+</html>

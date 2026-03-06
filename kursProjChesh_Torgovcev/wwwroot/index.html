@@ -38,11 +38,22 @@
     </div>
 </div>
 
-<!-- Блок игры (показываем если залогинен) -->
 <div id="game-section" style="display: none;">
     <div class="user-info">
         <span id="current-user"></span>
         <button onclick="logout()">Выйти</button>
+    </div>
+
+    <!-- Таймеры -->
+    <div class="timers">
+        <div class="timer black">
+            <span class="timer-label">Чёрные</span>
+            <span id="black-timer">90:00</span>
+        </div>
+        <div class="timer white">
+            <span class="timer-label">Белые</span>
+            <span id="white-timer">90:00</span>
+        </div>
     </div>
 
     <div id="board" style="width: 400px; margin: 20px auto;"></div>

@@ -4,6 +4,78 @@ var currentGameId = null;
 var currentUser = null;
 var isProcessing = false; // Флаг блокировки
 
+// Таймеры
+var whiteTime = 90 * 60; // 90 минут в секундах
+var blackTime = 90 * 60;
+var timerInterval = null;
+var currentTurn = 'w'; // 'w' или 'b'
+
+// Форматирование времени (секунды → MM:SS)
+function formatTime(seconds) {
+    var mins = Math.floor(seconds / 60);
+    var secs = seconds % 60;
+    return mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
+}
+
+// Обновление отображения таймеров
+function updateTimerDisplay() {
+    document.getElementById('white-timer').textContent = formatTime(whiteTime);
+    document.getElementById('black-timer').textContent = formatTime(blackTime);
+
+    // Подсветка активного таймера
+    var whiteTimer = document.querySelector('.timer.white');
+    var blackTimer = document.querySelector('.timer.black');
+
+    whiteTimer.classList.remove('active');
+    blackTimer.classList.remove('active');
+
+    if (currentTurn === 'w') {
+        whiteTimer.classList.add('active');
+    } else {
+        blackTimer.classList.add('active');
+    }
+
+    // Предупреждение при мало времени (< 5 минут)
+    if (whiteTime < 300) whiteTimer.classList.add('low-time');
+    if (blackTime < 300) blackTimer.classList.add('low-time');
+}
+
+// Запуск таймера
+function startTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+
+    timerInterval = setInterval(function() {
+        if (currentTurn === 'w') {
+            whiteTime--;
+            if (whiteTime <= 0) {
+                clearInterval(timerInterval);
+                alert('Время белых истекло! Чёрные победили.');
+            }
+        } else {
+            blackTime--;
+            if (blackTime <= 0) {
+                clearInterval(timerInterval);
+                alert('Время чёрных истекло! Белые победили.');
+            }
+        }
+        updateTimerDisplay();
+    }, 1000);
+}
+
+// Остановка таймера
+function stopTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+}
+
+// Смена хода (обновлённая функция)
+function switchTurn() {
+    currentTurn = currentTurn === 'w' ? 'b' : 'w';
+    document.getElementById('turn').textContent = currentTurn === 'w' ? 'Белые' : 'Чёрные';
+    updateTimerDisplay();
+}
 // === API функции ===
 
 // Регистрация
@@ -135,6 +207,13 @@ function showAuthSection() {
 // === Игра ===
 
 function initBoard() {
+    // Сброс таймеров
+    whiteTime = 90 * 60;
+    blackTime = 90 * 60;
+    currentTurn = 'w';
+    updateTimerDisplay();
+    startTimer();
+
     board = Chessboard('board', {
         position: 'start',
         draggable: true,
