@@ -54,7 +54,7 @@ public class GamesController : ControllerBase
         chessService.LoadPosition(game.CurrentFEN);
 
         // Проверяем ход
-        var result = chessService.MakeMove(request.From, request.To);
+        var result = chessService.MakeMove(request.From, request.To, request.Promotion);
     
         if (!result.success)
             return BadRequest(new { success = false, error = "Недопустимый ход" });
@@ -119,4 +119,6 @@ public class MoveRequest
     public string From { get; set; } = string.Empty;
     public string To { get; set; } = string.Empty;
     public string Color { get; set; } = "w";
+    
+    public string Promotion { get; set; } = "q";
 }

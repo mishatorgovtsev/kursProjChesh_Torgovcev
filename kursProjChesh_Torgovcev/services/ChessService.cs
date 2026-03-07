@@ -17,16 +17,33 @@ public class ChessService
         _game = new ChessGame(fen);
     }
     
-    public (bool success, string newFen, string pgnMove) MakeMove(string from, string to)
+    public (bool success, string newFen, string pgnMove) MakeMove(string from, string to, string promotion = "q")
     {
+        char promotionChar = promotion?.ToLower() switch
+        {
+            "r" => 'R',
+            "b" => 'B',
+            "n" => 'N',
+            _   => 'Q'  // по умолчанию ферзь
+        };
+
+        // Пробуем сначала с promotion (для пешки), потом без
+        var moveWithPromo = new Move(from, to, _game.WhoseTurn, promotionChar);
+    
+        if (_game.IsValidMove(moveWithPromo))
+        {
+            _game.MakeMove(moveWithPromo, true);
+            return (true, _game.GetFen(), moveWithPromo.ToString());
+        }
+
+        // Обычный ход без превращения
         var move = new Move(from, to, _game.WhoseTurn);
-        
         if (_game.IsValidMove(move))
         {
             _game.MakeMove(move, true);
             return (true, _game.GetFen(), move.ToString());
         }
-        
+    
         return (false, _game.GetFen(), string.Empty);
     }
     
