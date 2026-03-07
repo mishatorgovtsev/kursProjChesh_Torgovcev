@@ -3,7 +3,8 @@ using kursProjChesh_Torgovcev.services;
 using ChessPlatform.Data;
 using ChessPlatform.Models;
 using Microsoft.EntityFrameworkCore;
-
+using Microsoft.AspNetCore.SignalR;
+using kursProjChesh_Torgovcev.Hubs;
 
 namespace kursProjChesh_Torgovcev.Controllers;
 
@@ -13,11 +14,13 @@ public class GamesController : ControllerBase
 {
     private readonly ChessService _chessService;
     private readonly ChessDbContext _dbContext;
+    private readonly IHubContext<GameHub> _hubContext;
 
-    public GamesController(ChessService chessService, ChessDbContext dbContext)
+    public GamesController(ChessService chessService, ChessDbContext dbContext, IHubContext<GameHub> hubContext)
     {
         _chessService = chessService;
         _dbContext = dbContext;
+        _hubContext = hubContext;
     }
 
     /// <summary>
@@ -44,7 +47,7 @@ public class GamesController : ControllerBase
     /// Сделать ход
     /// </summary>
     [HttpPost("{id}/move")]
-    public IActionResult MakeMove(int id, [FromBody] MoveRequest request)
+    public async Task<IActionResult> MakeMove(int id, [FromBody] MoveRequest request)
     {
         var game = _dbContext.Games.Include(g => g.Moves).FirstOrDefault(g => g.Id == id);
         if (game == null)
@@ -56,14 +59,14 @@ public class GamesController : ControllerBase
 
         // Проверяем ход
         var result = chessService.MakeMove(request.From, request.To, request.Promotion);
-    
+
         if (!result.success)
             return BadRequest(new { success = false, error = "Недопустимый ход" });
 
         // Обновляем игру в БД
         game.CurrentFEN = result.newFen;
         game.LastMoveAt = DateTime.Now;
-    
+
         // Добавляем ход в историю
         var move = new GameMove
         {
@@ -73,15 +76,30 @@ public class GamesController : ControllerBase
             MoveNotation = result.pgnMove,
             FENAfterMove = result.newFen
         };
-    
+
         _dbContext.GameMoves.Add(move);
         _dbContext.SaveChanges();
 
-        return Ok(new 
-        { 
-            success = true, 
-            newFen = result.newFen, 
-            isGameOver = chessService.IsGameOver() 
+        var isGameOver = chessService.IsGameOver();
+        var nextTurn = request.Color == "white" ? "b" : "w";
+
+        // Уведомляем второго игрока через SignalR
+        await _hubContext.Clients.Group($"game_{id}").SendAsync("MoveMade", new
+        {
+            from = request.From,
+            to = request.To,
+            promotion = request.Promotion,
+            newFen = result.newFen,
+            nextTurn,
+            isGameOver,
+            sentByUserId = request.UserId  // чтобы получатель знал чей ход
+        });
+
+        return Ok(new
+        {
+            success = true,
+            newFen = result.newFen,
+            isGameOver
         });
     }
 
@@ -93,10 +111,10 @@ public class GamesController : ControllerBase
     {
         var game = _dbContext.Games.Find(id);
         if (game == null)
-            return NotFound(new { success = false, error = "Игра не найдена" });  // ← JSON!
+            return NotFound(new { success = false, error = "Игра не найдена" });
 
-        return Ok(new 
-        { 
+        return Ok(new
+        {
             game.Id,
             game.Status,
             game.CurrentFEN,
@@ -106,16 +124,17 @@ public class GamesController : ControllerBase
             game.BlackPlayerId
         });
     }
+
     /// <summary>
     /// Отменить последний ход
     /// </summary>
     [HttpPost("{id}/undo")]
-    public IActionResult UndoMove(int id)
+    public async Task<IActionResult> UndoMove(int id)
     {
         var game = _dbContext.Games
             .Include(g => g.Moves)
             .FirstOrDefault(g => g.Id == id);
-        
+
         if (game == null)
             return NotFound(new { success = false, error = "Игра не найдена" });
 
@@ -135,6 +154,12 @@ public class GamesController : ControllerBase
         game.CurrentFEN = prevMove?.FENAfterMove ?? "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         _dbContext.SaveChanges();
 
+        // Уведомляем второго игрока об отмене хода
+        await _hubContext.Clients.Group($"game_{id}").SendAsync("MoveUndone", new
+        {
+            fen = game.CurrentFEN
+        });
+
         return Ok(new { success = true, fen = game.CurrentFEN });
     }
 }
@@ -151,6 +176,6 @@ public class MoveRequest
     public string From { get; set; } = string.Empty;
     public string To { get; set; } = string.Empty;
     public string Color { get; set; } = "w";
-    
     public string Promotion { get; set; } = "q";
+    public int UserId { get; set; }  // кто делает ход
 }

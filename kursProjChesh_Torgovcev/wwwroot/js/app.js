@@ -10,6 +10,9 @@ var game          = null;   // chess.js instance для валидации хо�
 var isProcessing  = false;
     
 var pendingPromotion = null; // { source, target }
+var hubConnection = null;
+var myColor = 'w'; // цвет текущего игрока
+
 // Таймеры
 var whiteTimeSec  = 600;
 var blackTimeSec  = 600;
@@ -254,7 +257,7 @@ async function createGame() {
             // Загружаем противника для отображения имени
             var opponentName = document.getElementById('opponent-select')
                 .selectedOptions[0].text.split(' (')[0];
-            startGameScreen(data.gameId, currentUser.username, opponentName, timeMin);
+            startGameScreen(data.gameId, currentUser.username, opponentName, timeMin, 'w');
         } else {
             toast(data.error || 'Ошибка создания игры', 'error');
         }
@@ -264,7 +267,8 @@ async function createGame() {
 }
 
 // ── Игровой экран ─────────────────────────────────────
-function startGameScreen(gameId, whiteName, blackName, timeMin) {
+function startGameScreen(gameId, whiteName, blackName, timeMin, color) {
+    myColor = color || 'w';
     currentGameId = gameId;
     moveHistory   = [];
     currentTurn   = 'w';
@@ -289,39 +293,42 @@ function startGameScreen(gameId, whiteName, blackName, timeMin) {
 
 // ── Доска и chess.js ──────────────────────────────────
 function initBoard() {
-    // Инициализируем chess.js для валидации
     if (typeof Chess !== 'undefined') {
         game = new Chess();
     } else {
-        game = null; // Если chess.js не подключён — продолжаем без него
-        console.warn('chess.js не найден, валидация ходов отключена');
+        game = null;
     }
 
     if (board) board.destroy();
+
+    // Определяем ориентацию — если играем за чёрных, переворачиваем доску
+    var orientation = myColor === 'b' ? 'black' : 'white';
 
     board = Chessboard('board', {
         position: 'start',
         draggable: true,
         dropOffBoard: 'snapback',
         pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+        orientation: orientation,
         onDragStart: onDragStart,
         onDrop: onDrop,
         onSnapEnd: onSnapEnd
     });
 }
-
 // Запрет перетаскивания не в свой ход
 function onDragStart(source, piece) {
     if (game && game.game_over()) return false;
 
-    // Если режим тренировки — разрешаем ходить за обоих
     var trainingMode = document.getElementById('training-mode') &&
         document.getElementById('training-mode').checked;
     if (trainingMode) return true;
 
-    if (currentTurn === 'w' && piece.search(/^b/) !== -1) return false;
-    if (currentTurn === 'b' && piece.search(/^w/) !== -1) return false;
-    if (currentTurn === 'b') return false;
+    // Блокируем если не наш ход
+    if (currentTurn !== myColor) return false;
+
+    // Блокируем чужие фигуры
+    if (myColor === 'w' && piece.search(/^b/) !== -1) return false;
+    if (myColor === 'b' && piece.search(/^w/) !== -1) return false;
 }
 
 async function onDrop(source, target) {
@@ -350,6 +357,53 @@ async function onDrop(source, target) {
     await sendMove(source, target, 'q');
 }
 
+function connectToHub(gameId) {
+    if (hubConnection) hubConnection.stop();
+
+    hubConnection = new signalR.HubConnectionBuilder()
+        .withUrl('/gameHub')
+        .withAutomaticReconnect()
+        .build();
+
+    hubConnection.on('MoveMade', function(data) {
+        if (data.sentByUserId === currentUser.userId) return;
+
+        if (game) {
+            var result = game.move({ from: data.from, to: data.to, promotion: data.promotion || 'q' });
+            if (!result) {
+                // chess.js отклонил — загружаем FEN напрямую с сервера
+                game.load(data.newFen);
+            }
+        }
+        board.position(game ? game.fen() : data.newFen);
+
+        // Определяем чей был ход по nextTurn: если nextTurn='b', значит только что ходили белые
+        var movedColor = data.nextTurn === 'b' ? 'w' : 'b';
+        addMoveToHistory(data.from, data.to, movedColor);
+
+        currentTurn = data.nextTurn;
+        document.getElementById('turn-name').textContent = currentTurn === 'w' ? 'Белые' : 'Чёрные';
+        updateTimerDisplay();
+
+        if (data.isGameOver) {
+            stopTimer();
+            showGameOver('Игра окончена!', 'Мат.');
+        }
+    });
+
+    hubConnection.on('MoveUndone', function(data) {
+        if (game) { game.undo(); board.position(game.fen()); }
+        else board.position(data.fen);
+    });
+
+    hubConnection.on('PlayerJoined', function() { toast('Противник подключился!', 'success'); });
+    hubConnection.on('PlayerLeft',  function() { toast('Противник отключился', 'error'); });
+
+    hubConnection.start()
+        .then(function() { return hubConnection.invoke('JoinGame', gameId); })
+        .catch(function(e) { console.error('SignalR:', e); });
+}
+
 async function selectPromotion(piece) {
     document.getElementById('promotion-modal').classList.remove('open');
     if (pendingPromotion) {
@@ -367,8 +421,9 @@ async function sendMove(source, target, promotion) {
             body: JSON.stringify({
                 from: source,
                 to: target,
-                color: currentTurn === 'w' ? 'white' : 'black',
-                promotion: promotion
+                color: myColor === 'w' ? 'white' : 'black',  // было currentTurn
+                promotion: promotion,
+                userId: currentUser.userId
             })
         });
 
@@ -519,6 +574,28 @@ async function undoMove() {
         toast('Ошибка', 'error');
     }
 }
+async function joinExistingGame(gameId, whiteName, blackName, timeMin, color) {
+    currentGameId = gameId;  // устанавливаем gameId БЕЗ создания новой игры
+    moveHistory = [];
+    currentTurn = 'w';
+    myColor = color || 'b';
+
+    var timeSec = (timeMin || 10) * 60;
+    whiteTimeSec = timeSec;
+    blackTimeSec = timeSec;
+
+    document.getElementById('white-player-name').textContent = whiteName;
+    document.getElementById('black-player-name').textContent = blackName + ' (Вы)';
+    document.getElementById('moves-list').innerHTML =
+        '<span style="color:var(--text-muted);font-size:13px">Ходов ещё нет</span>';
+
+    updateTimerDisplay();
+    showScreen('game-screen');
+    initBoard();
+    startTimer();
+    connectToHub(gameId);
+}
+
 // ── Утилиты ───────────────────────────────────────────
 function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
