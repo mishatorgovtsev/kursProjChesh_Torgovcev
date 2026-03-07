@@ -4,6 +4,7 @@ using ChessPlatform.Data;
 using ChessPlatform.Models;
 using Microsoft.EntityFrameworkCore;
 
+
 namespace kursProjChesh_Torgovcev.Controllers;
 
 [ApiController]
@@ -104,6 +105,37 @@ public class GamesController : ControllerBase
             game.WhitePlayerId,
             game.BlackPlayerId
         });
+    }
+    /// <summary>
+    /// Отменить последний ход
+    /// </summary>
+    [HttpPost("{id}/undo")]
+    public IActionResult UndoMove(int id)
+    {
+        var game = _dbContext.Games
+            .Include(g => g.Moves)
+            .FirstOrDefault(g => g.Id == id);
+        
+        if (game == null)
+            return NotFound(new { success = false, error = "Игра не найдена" });
+
+        if (game.Moves.Count == 0)
+            return BadRequest(new { success = false, error = "Нет ходов для отмены" });
+
+        // Удаляем последний ход
+        var lastMove = game.Moves.OrderByDescending(m => m.MoveNumber).First();
+        _dbContext.GameMoves.Remove(lastMove);
+
+        // Восстанавливаем FEN из предпоследнего хода
+        var prevMove = game.Moves
+            .OrderByDescending(m => m.MoveNumber)
+            .Skip(1)
+            .FirstOrDefault();
+
+        game.CurrentFEN = prevMove?.FENAfterMove ?? "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        _dbContext.SaveChanges();
+
+        return Ok(new { success = true, fen = game.CurrentFEN });
     }
 }
 

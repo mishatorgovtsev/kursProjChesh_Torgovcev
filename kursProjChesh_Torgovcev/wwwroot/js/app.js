@@ -491,6 +491,34 @@ function goToLobby() {
     showLobby();
 }
 
+async function undoMove() {
+    if (!currentGameId) return;
+    try {
+        var res = await fetch('/api/Games/' + currentGameId + '/undo', {
+            method: 'POST'
+        });
+        var data = await res.json();
+        if (data.success) {
+            // Откатываем chess.js
+            if (game) game.undo();
+            board.position(game ? game.fen() : data.fen);
+            // Убираем последний ход из истории
+            if (moveHistory.length > 0) {
+                var last = moveHistory[moveHistory.length - 1];
+                if (last.b) { last.b = null; currentTurn = 'b'; }
+                else { moveHistory.pop(); currentTurn = 'w'; }
+                renderMoveHistory();
+            }
+            document.getElementById('turn-name').textContent = currentTurn === 'w' ? 'Белые' : 'Чёрные';
+            updateTimerDisplay();
+            toast('Ход отменён', 'success');
+        } else {
+            toast(data.error || 'Нет ходов для отмены', 'error');
+        }
+    } catch(e) {
+        toast('Ошибка', 'error');
+    }
+}
 // ── Утилиты ───────────────────────────────────────────
 function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
