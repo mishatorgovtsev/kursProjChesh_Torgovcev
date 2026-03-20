@@ -223,11 +223,38 @@ async function loadLeaderboard() {
 
 // Загружаем активные игры (используем leaderboard как proxy для демонстрации)
 async function loadActiveGames() {
-    // В реальном проекте здесь был бы GET /api/Games/active
-    // Пока показываем заглушку
-    var el = document.getElementById('games-list');
-    el.innerHTML = '<div class="empty-list">Нет активных игр.<br>Создайте новую игру выше.</div>';
-    document.getElementById('games-count').textContent = '0 игр';
+    try {
+        var res = await fetch('/api/Games/active?userId=' + currentUser.userId);
+        var games = await res.json();
+        var el = document.getElementById('games-list');
+
+        if (games.length === 0) {
+            el.innerHTML = '<div class="empty-list">Нет активных игр.<br>Создайте новую игру выше.</div>';
+            document.getElementById('games-count').textContent = '0 игр';
+            return;
+        }
+
+        document.getElementById('games-count').textContent = games.length + ' игр';
+        el.innerHTML = games.map(function(g) {
+            var isMyGame = g.isMyGame;
+            var label = isMyGame ? ' <span style="color:var(--accent);font-size:11px">● Ваша</span>' : '';
+            return '<div class="game-row" onclick="joinGameFromLobby(' + g.id + ',\'' +
+                g.whitePlayer.username + '\',\'' + g.blackPlayer.username + '\',' + g.timeControlMinutes + ')">' +
+                '<div class="game-players">' + g.whitePlayer.username +
+                ' <span>vs</span> ' + g.blackPlayer.username + label + '</div>' +
+                '<span class="game-status ' + g.status + '">' +
+                (g.status === 'Pending' ? 'Ожидание' : 'Идёт') + '</span>' +
+                '</div>';
+        }).join('');
+    } catch(e) {
+        console.error('Ошибка загрузки игр:', e);
+    }
+}
+
+function joinGameFromLobby(gameId, whiteName, blackName, timeMin) {
+    // Определяем наш цвет
+    var color = 'b'; // по умолчанию чёрные (присоединяемся к чужой игре)
+    joinExistingGame(gameId, whiteName, blackName, timeMin, color);
 }
 
 // ── Создать игру ──────────────────────────────────────
@@ -439,7 +466,18 @@ async function sendMove(source, target, promotion) {
 
         if (data.isGameOver) {
             stopTimer();
-            showGameOver('Игра окончена!', 'Мат.');
+            // Определяем победителя
+            var winnerId = myColor === 'w' ? currentUser.userId : null;
+            var result = myColor === 'w' ? 'white' : 'black';
+
+            // Отправляем результат на сервер
+            fetch('/api/Games/' + currentGameId + '/finish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ result: result, winnerId: winnerId })
+            });
+
+            showGameOver('Игра окончена!', 'Мат. Победили ' + (myColor === 'w' ? 'белые' : 'чёрные'));
         }
     } catch(e) {
         console.error('Ошибка хода:', e);
@@ -505,6 +543,11 @@ function startTimer() {
             whiteTimeSec--;
             if (whiteTimeSec <= 0) {
                 stopTimer();
+                fetch('/api/Games/' + currentGameId + '/finish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ result: 'black', winnerId: null })
+                });
                 showGameOver('Время истекло!', 'Время белых истекло. Победили чёрные.');
                 return;
             }
@@ -512,6 +555,11 @@ function startTimer() {
             blackTimeSec--;
             if (blackTimeSec <= 0) {
                 stopTimer();
+                fetch('/api/Games/' + currentGameId + '/finish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ result: 'white', winnerId: null })
+                });
                 showGameOver('Время истекло!', 'Время чёрных истекло. Победили белые.');
                 return;
             }
