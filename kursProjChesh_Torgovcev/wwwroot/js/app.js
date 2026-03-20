@@ -289,6 +289,7 @@ function startGameScreen(gameId, whiteName, blackName, timeMin, color) {
     showScreen('game-screen');
     initBoard();
     startTimer();
+    connectToHub(gameId);
 }
 
 // ── Доска и chess.js ──────────────────────────────────
