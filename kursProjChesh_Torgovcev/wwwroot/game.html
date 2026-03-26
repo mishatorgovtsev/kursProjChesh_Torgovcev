@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Игра — Chess Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <link rel="stylesheet" href="/css/common.css">
+    <style>
+        /* ── Game layout ── */
+        .page {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 28px 24px;
+        }
+
+        .game-layout {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        /* ── Board area ── */
+        .board-area { flex-shrink: 0; }
+
+        .player-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 4px;
+            gap: 12px;
+        }
+
+        .player-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .player-name {
+            font-weight: 600;
+            font-size: 15px;
+        }
+        .player-name.you { color: var(--accent); }
+
+        .player-name-link {
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            transition: color .15s;
+        }
+        .player-name-link:hover { color: var(--accent); }
+
+        .player-rating-small {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .timer-display {
+            font-family: 'DM Sans', monospace;
+            font-size: 22px;
+            font-weight: 700;
+            padding: 6px 16px;
+            border-radius: 8px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            transition: all .3s;
+            min-width: 90px;
+            text-align: center;
+        }
+        .timer-display.active {
+            background: rgba(201,168,76,.12);
+            border-color: rgba(201,168,76,.4);
+            color: var(--accent);
+        }
+        .timer-display.low {
+            color: var(--red) !important;
+            border-color: rgba(224,85,85,.4) !important;
+        }
+
+        #board-container { margin: 4px 0; }
+        .board-b72b1 { border-radius: 4px; overflow: hidden; }
+
+        /* ── Side panel ── */
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        .game-status-bar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            text-align: center;
+        }
+        .turn-indicator { font-size: 13px; color: var(--text-muted); margin-bottom: 4px; }
+        .turn-name { font-size: 18px; font-weight: 700; }
+
+        .move-history {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            flex: 1;
+        }
+        .move-history .panel-header { padding: 14px 16px; }
+
+        .moves-list {
+            padding: 12px 16px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 13px;
+            font-family: 'DM Sans', monospace;
+        }
+
+        .move-pair {
+            display: flex;
+            gap: 8px;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+        }
+        .move-pair:last-child { border-bottom: none; }
+        .move-num { color: var(--text-muted); width: 28px; flex-shrink: 0; }
+        .move-w, .move-b { flex: 1; }
+
+        .game-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* ── Players panel (compact) ── */
+        .players-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+        .players-panel-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .player-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .player-card:last-child { border-bottom: none; }
+        .player-piece {
+            font-size: 20px;
+            width: 32px;
+            text-align: center;
+        }
+        .player-card-info { flex: 1; }
+        .player-card-name {
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: color .15s;
+        }
+        .player-card-name:hover { color: var(--accent); }
+        .player-card-name.you { color: var(--accent); }
+        .player-card-rating { font-size: 12px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+    <a class="logo" href="/">♟ Chess Platform</a>
+    <div class="header-right">
+        <span class="header-user" id="header-user"></span>
+        <a href="/" class="btn btn-ghost">← Лобби</a>
+        <a href="/tournament.html" class="btn btn-ghost">Турниры</a>
+        <button class="btn btn-danger" id="logout-btn">Выйти</button>
+    </div>
+</header>
+
+<div class="page">
+    <div class="game-layout">
+
+        <!-- Левая часть: доска -->
+        <div class="board-area">
+            <!-- Верхний игрок (противник) -->
+            <div class="player-bar">
+                <div class="player-info">
+                    <span class="player-name" id="top-player-name">
+                        <span class="player-name-link" id="top-player-link">Противник</span>
+                    </span>
+                </div>
+                <div class="timer-display" id="top-timer">10:00</div>
+            </div>
+
+            <div id="board-container">
+                <div id="board" style="width:460px"></div>
+            </div>
+
+            <!-- Нижний игрок (я) -->
+            <div class="player-bar">
+                <div class="player-info">
+                    <span class="player-name you" id="bottom-player-name">
+                        <span class="player-name-link" id="bottom-player-link">Вы</span>
+                    </span>
+                </div>
+                <div class="timer-display active" id="bottom-timer">10:00</div>
+            </div>
+        </div>
+
+        <!-- Правая панель -->
+        <div class="side-panel">
+
+            <!-- Текущий ход -->
+            <div class="game-status-bar">
+                <div class="turn-indicator">Ход:</div>
+                <div class="turn-name" id="turn-name">Белые</div>
+            </div>
+
+            <!-- Игроки -->
+            <div class="players-panel">
+                <div class="players-panel-title">Игроки</div>
+                <div class="player-card">
+                    <div class="player-piece">♔</div>
+                    <div class="player-card-info">
+                        <div class="player-card-name" id="side-white-name" onclick="">—</div>
+                        <div class="player-card-rating" id="side-white-rating"></div>
+                    </div>
+                </div>
+                <div class="player-card">
+                    <div class="player-piece">♚</div>
+                    <div class="player-card-info">
+                        <div class="player-card-name" id="side-black-name" onclick="">—</div>
+                        <div class="player-card-rating" id="side-black-rating"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- История ходов -->
+            <div class="move-history">
+                <div class="panel-header">История ходов</div>
+                <div class="moves-list" id="moves-list">
+                    <span style="color:var(--text-muted);font-size:13px">Ходов ещё нет</span>
+                </div>
+            </div>
+
+            <!-- Действия -->
+            <div class="game-actions">
+                <button class="btn btn-ghost" onclick="undoMove()">↩ Отменить ход</button>
+                <button class="btn btn-ghost" onclick="window.location.href='/'">← В лобби</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Promotion modal -->
+<div class="modal-overlay" id="promotion-modal">
+    <div class="modal" style="text-align:center">
+        <h3>Превращение пешки</h3>
+        <p style="color:var(--text-muted);font-size:14px;margin-bottom:20px">Выберите фигуру</p>
+        <div style="display:flex;gap:12px;justify-content:center">
+            <button class="btn btn-ghost" style="font-size:28px;padding:12px 16px" onclick="selectPromotion('q')">♛</button>
+            <button class="btn btn-ghost" style="font-size:28px;padding:12px 16px" onclick="selectPromotion('r')">♜</button>
+            <button class="btn btn-ghost" style="font-size:28px;padding:12px 16px" onclick="selectPromotion('b')">♝</button>
+            <button class="btn btn-ghost" style="font-size:28px;padding:12px 16px" onclick="selectPromotion('n')">♞</button>
+        </div>
+    </div>
+</div>
+
+<!-- Game over modal -->
+<div class="modal-overlay" id="gameover-modal">
+    <div class="modal">
+        <h3 id="gameover-title">Игра окончена</h3>
+        <p id="gameover-text" style="color:var(--text-muted);font-size:14px"></p>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="viewProfile()">Мой профиль</button>
+            <button class="btn btn-primary" onclick="window.location.href='/'">В лобби</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+<script src="/js/common.js"></script>
+<script src="/js/game.js"></script>
+</body>
+</html>

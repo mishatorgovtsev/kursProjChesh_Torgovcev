@@ -29,12 +29,16 @@ public class GamesController : ControllerBase
     [HttpPost("create")]
     public IActionResult CreateGame([FromBody] CreateGameRequest request)
     {
+        var timeMin = request.TimeControlMinutes > 0 ? request.TimeControlMinutes : 10;
         var game = new Game
         {
-            WhitePlayerId = request.WhitePlayerId,
-            BlackPlayerId = request.BlackPlayerId,
-            Status = "Pending",
-            CurrentFEN = _chessService.GetCurrentFen()
+            WhitePlayerId      = request.WhitePlayerId,
+            BlackPlayerId      = request.BlackPlayerId,
+            Status             = "Pending",
+            CurrentFEN         = _chessService.GetCurrentFen(),
+            TimeControlMinutes = timeMin,
+            WhiteTimeRemaining = timeMin * 60,
+            BlackTimeRemaining = timeMin * 60
         };
 
         _dbContext.Games.Add(game);
@@ -65,6 +69,22 @@ public class GamesController : ControllerBase
 
         // Обновляем игру в БД
         game.CurrentFEN = result.newFen;
+
+        // Вычитаем прошедшее время у того кто ходил
+        if (game.LastMoveAt.HasValue)
+        {
+            var elapsed = (int)(DateTime.Now - game.LastMoveAt.Value).TotalSeconds;
+            if (request.Color == "white")
+                game.WhiteTimeRemaining = Math.Max(0, game.WhiteTimeRemaining - elapsed);
+            else
+                game.BlackTimeRemaining = Math.Max(0, game.BlackTimeRemaining - elapsed);
+        }
+        else
+        {
+            // Первый ход — инициализируем время из TimeControlMinutes
+            game.WhiteTimeRemaining = game.TimeControlMinutes * 60;
+            game.BlackTimeRemaining = game.TimeControlMinutes * 60;
+        }
         game.LastMoveAt = DateTime.Now;
 
         // Добавляем ход в историю
@@ -83,7 +103,7 @@ public class GamesController : ControllerBase
         var isGameOver = chessService.IsGameOver();
         var nextTurn = request.Color == "white" ? "b" : "w";
 
-        // Уведомляем второго игрока через SignalR
+        // Уведомляем ВСЕХ игроков через SignalR (включая отправителя — для синхронизации таймера)
         await _hubContext.Clients.Group($"game_{id}").SendAsync("MoveMade", new
         {
             from = request.From,
@@ -92,7 +112,9 @@ public class GamesController : ControllerBase
             newFen = result.newFen,
             nextTurn,
             isGameOver,
-            sentByUserId = request.UserId  // чтобы получатель знал чей ход
+            sentByUserId = request.UserId,
+            whiteTimeSec = game.WhiteTimeRemaining,
+            blackTimeSec = game.BlackTimeRemaining
         });
 
         return Ok(new
@@ -267,6 +289,7 @@ public class CreateGameRequest
 {
     public int WhitePlayerId { get; set; }
     public int BlackPlayerId { get; set; }
+    public int TimeControlMinutes { get; set; } = 10;
 }
 
 public class MoveRequest

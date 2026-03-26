@@ -28,12 +28,16 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+
+// Отдаём index.html по адресу /
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthorization();
 
 // ДОБАВЛЯЕМ маршрут для Hub
 app.MapHub<GameHub>("/gameHub");
 
-app.UseStaticFiles();
 app.MapControllers();
 
 app.Run();

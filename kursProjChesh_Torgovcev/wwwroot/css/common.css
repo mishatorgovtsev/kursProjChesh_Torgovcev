@@ -1,0 +1,206 @@
+/* ═══════════════════════════════════════════
+   Chess Platform — common.css
+   Общие стили для всех страниц
+═══════════════════════════════════════════ */
+
+:root {
+    --bg:         #0f0f13;
+    --surface:    #1a1a22;
+    --surface2:   #22222e;
+    --border:     #2e2e3e;
+    --accent:     #c9a84c;
+    --accent2:    #e8c96a;
+    --text:       #e8e8f0;
+    --text-muted: #7a7a9a;
+    --green:      #4caf74;
+    --red:        #e05555;
+    --blue:       #5577cc;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+}
+
+/* ── Header ── */
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+
+.logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    color: var(--accent);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-user {
+    font-size: 14px;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    font-weight: 500;
+}
+.header-user:hover { color: var(--accent2); }
+
+/* ── Buttons ── */
+.btn {
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: none;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+    text-decoration: none;
+    display: inline-block;
+}
+.btn-primary  { background: var(--accent); color: #111; }
+.btn-primary:hover  { background: var(--accent2); }
+.btn-ghost    { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.btn-ghost:hover    { border-color: var(--accent); color: var(--accent); }
+.btn-danger   { background: transparent; color: var(--red); border: 1px solid rgba(224,85,85,.3); }
+.btn-danger:hover   { background: rgba(224,85,85,.1); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Panel ── */
+.panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* ── Form fields ── */
+.field { margin-bottom: 14px; }
+
+.field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 6px;
+}
+
+.field input, .select-field select, select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 14px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s;
+}
+.field input:focus, select:focus { border-color: var(--accent); }
+
+/* ── Toast ── */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 14px;
+    z-index: 200;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s;
+    pointer-events: none;
+}
+.toast.show    { transform: translateY(0); opacity: 1; }
+.toast.success { border-color: var(--green); color: var(--green); }
+.toast.error   { border-color: var(--red);   color: var(--red);   }
+
+/* ── Modal ── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+.modal-overlay.open { display: flex; }
+
+.modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 32px;
+    width: 360px;
+    max-width: 95vw;
+}
+
+.modal h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    color: var(--accent);
+    margin-bottom: 20px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+.modal-actions .btn { flex: 1; }
+
+/* ── Empty list ── */
+.empty-list {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* ── Game status badges ── */
+.game-status {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+.game-status.Pending    { background: rgba(85,119,204,.15); color: #7799ee; }
+.game-status.InProgress { background: rgba(201,168,76,.1);  color: var(--accent); }
+.game-status.Completed  { background: rgba(76,175,116,.1);  color: var(--green); }

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -447,11 +447,13 @@
 <body>
 
 <header>
-    <a href="/" class="logo">♟ Chess Platform</a>
-    <nav class="header-nav">
-        <a href="/">Главная</a>
-        <a href="/tournament.html" style="color:var(--accent)">Турниры</a>
-    </nav>
+    <a href="/" class="logo">&#9819; Chess Platform</a>
+    <div style="display:flex;align-items:center;gap:14px">
+        <a href="/" style="color:var(--text-muted);text-decoration:none;font-size:14px">Главная</a>
+        <a href="/tournament.html" style="color:var(--accent);text-decoration:none;font-size:14px">Турниры</a>
+        <span id="header-user" style="font-size:14px;color:var(--accent);cursor:pointer;text-decoration:underline;font-weight:500"></span>
+        <button id="logout-btn" style="background:transparent;color:#e05555;border:1px solid rgba(224,85,85,.3);padding:8px 16px;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer">Выйти</button>
+    </div>
 </header>
 
 <div class="page">
@@ -845,6 +847,11 @@
         document.getElementById('tid-input').value = urlId;
         loadTournament();
     }
+</script>
+
+<script src="/js/common.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() { initHeader(); });
 </script>
 </body>
 </html>

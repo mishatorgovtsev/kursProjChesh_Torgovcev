@@ -157,7 +157,8 @@ function showScreen(id) {
 // ── Лобби ─────────────────────────────────────────────
 async function showLobby() {
     showScreen('lobby-screen');
-    document.getElementById('main-header').style.display = 'flex';
+    document.getElementById('header-user').innerHTML = '<strong>' + currentUser.username + '</strong> (' + currentUser.rating + ')';
+    document.getElementById('header-user').onclick = goToProfile;
     document.getElementById('header-user').innerHTML =
         '<strong>' + currentUser.username + '</strong> (' + currentUser.rating + ')';
     await loadLobby();
@@ -593,6 +594,10 @@ function goToLobby() {
     stopTimer();
     document.getElementById('gameover-modal').classList.remove('open');
     showLobby();
+}
+
+function goToProfile() {
+    window.location.href = '/profile.html?id=' + currentUser.userId;
 }
 
 async function undoMove() {

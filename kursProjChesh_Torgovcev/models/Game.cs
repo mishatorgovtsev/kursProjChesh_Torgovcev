@@ -63,7 +63,7 @@ public class Game
 
     // Контроль времени
     [Column("time_control_minutes")]
-    public int TimeControlMinutes { get; set; } = 90;
+    public int TimeControlMinutes { get; set; } = 10;
 
     [Column("time_control_increment")]
     public int TimeControlIncrement { get; set; } = 0;

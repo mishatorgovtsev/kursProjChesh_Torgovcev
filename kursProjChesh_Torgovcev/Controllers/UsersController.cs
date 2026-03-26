@@ -144,6 +144,29 @@ public class UsersController : ControllerBase
     {
         return HashPassword(password) == storedHash;
     }
+    
+    /// <summary>
+    /// История рейтинга пользователя
+    /// </summary>
+    [HttpGet("{id}/rating-history")]
+    public async Task<IActionResult> GetRatingHistory(int id)
+    {
+        var history = await _dbContext.RatingHistories
+            .Where(r => r.UserId == id)
+            .OrderByDescending(r => r.RecordedAt)
+            .Take(20)
+            .Select(r => new
+            {
+                r.Id,
+                r.GameId,
+                r.OldRating,
+                r.NewRating,
+                r.RecordedAt
+            })
+            .ToListAsync();
+
+        return Ok(history);
+    }
 }
 
 // DTO для запросов
