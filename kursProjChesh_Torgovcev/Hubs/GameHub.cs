@@ -74,7 +74,15 @@ public class GameHub : Hub
     /// </summary>
     public async Task OfferDraw(int gameId)
     {
-        await Clients.Group($"game_{gameId}").SendAsync("DrawOffered", Context.ConnectionId);
+        await Clients.OthersInGroup($"game_{gameId}").SendAsync("DrawOffered");
+    }
+
+    /// <summary>
+    /// Отклонить ничью
+    /// </summary>
+    public async Task DeclineDraw(int gameId)
+    {
+        await Clients.OthersInGroup($"game_{gameId}").SendAsync("DrawDeclined");
     }
 
     /// <summary>

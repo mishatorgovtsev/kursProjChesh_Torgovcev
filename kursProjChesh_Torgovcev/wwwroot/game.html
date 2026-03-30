@@ -135,6 +135,49 @@
             gap: 8px;
         }
 
+        .btn-resign {
+            background: transparent;
+            color: var(--red);
+            border: 1px solid rgba(224,85,85,.3);
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .btn-resign:hover { background: rgba(224,85,85,.1); }
+
+        .btn-draw {
+            background: transparent;
+            color: var(--blue);
+            border: 1px solid rgba(85,119,204,.3);
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .btn-draw:hover { background: rgba(85,119,204,.1); }
+
+        /* Draw offer banner */
+        .draw-offer-banner {
+            background: rgba(85,119,204,.12);
+            border: 1px solid rgba(85,119,204,.35);
+            border-radius: 10px;
+            padding: 14px 16px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .draw-offer-banner.visible { display: flex; }
+        .draw-offer-text { font-size: 14px; color: var(--text); font-weight: 500; }
+        .draw-offer-actions { display: flex; gap: 8px; }
+        .draw-offer-actions .btn { flex: 1; padding: 8px 12px; font-size: 13px; }
+
         /* ── Players panel (compact) ── */
         .players-panel {
             background: var(--surface);
@@ -254,9 +297,20 @@
                 </div>
             </div>
 
+            <!-- Draw offer banner (появляется когда противник предлагает ничью) -->
+            <div class="draw-offer-banner" id="draw-offer-banner">
+                <div class="draw-offer-text">🤝 Противник предлагает ничью</div>
+                <div class="draw-offer-actions">
+                    <button class="btn btn-primary" onclick="acceptDraw()">Принять</button>
+                    <button class="btn btn-ghost"   onclick="declineDraw()">Отклонить</button>
+                </div>
+            </div>
+
             <!-- Действия -->
             <div class="game-actions">
                 <button class="btn btn-ghost" onclick="undoMove()">↩ Отменить ход</button>
+                <button class="btn btn-draw"  onclick="offerDraw()">🤝 Предложить ничью</button>
+                <button class="btn btn-resign" onclick="confirmResign()">🏳 Сдаться</button>
                 <button class="btn btn-ghost" onclick="window.location.href='/'">← В лобби</button>
             </div>
         </div>
@@ -273,6 +327,18 @@
             <button class="btn btn-ghost" style="font-size:28px;padding:12px 16px" onclick="selectPromotion('r')">♜</button>
             <button class="btn btn-ghost" style="font-size:28px;padding:12px 16px" onclick="selectPromotion('b')">♝</button>
             <button class="btn btn-ghost" style="font-size:28px;padding:12px 16px" onclick="selectPromotion('n')">♞</button>
+        </div>
+    </div>
+</div>
+
+<!-- Resign confirm modal -->
+<div class="modal-overlay" id="resign-modal">
+    <div class="modal" style="text-align:center">
+        <h3>Сдаться?</h3>
+        <p style="color:var(--text-muted);font-size:14px;margin-bottom:4px">Вы уверены что хотите сдать партию?</p>
+        <div class="modal-actions">
+            <button class="btn btn-ghost"   onclick="closeResignModal()">Отмена</button>
+            <button class="btn btn-resign"  onclick="doResign()">Сдаться</button>
         </div>
     </div>
 </div>

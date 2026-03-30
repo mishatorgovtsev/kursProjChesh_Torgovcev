@@ -228,6 +228,43 @@ function connectToHub(gameId) {
     hubConnection.on('PlayerJoined', function () { toast('Противник подключился!', 'success'); });
     hubConnection.on('PlayerLeft',   function () { toast('Противник отключился', 'error'); });
 
+    // Противник предлагает ничью
+    hubConnection.on('DrawOffered', function () {
+        document.getElementById('draw-offer-banner').classList.add('visible');
+    });
+
+    // Противник отклонил ничью
+    hubConnection.on('DrawDeclined', function () {
+        toast('Противник отклонил ничью', 'error');
+    });
+
+    // Игра завершена (сервер прислал после /finish)
+    hubConnection.on('GameFinished', function (data) {
+        stopTimer();
+        var isWhite  = myColor === 'w';
+        var iWon     = (data.result === 'white' && isWhite) || (data.result === 'black' && !isWhite);
+        var isDraw   = data.result === 'draw';
+
+        var title = isDraw ? 'Ничья!' : (iWon ? '🏆 Победа!' : '😞 Поражение');
+        var myRating = isWhite ? data.whiteRating : data.blackRating;
+        var ratingChange = myRating ? (myRating.newR - myRating.old) : 0;
+        var sign  = ratingChange >= 0 ? '+' : '';
+        var text  = isDraw
+            ? 'Партия завершилась вничью.'
+            : (iWon ? 'Вы победили!' : 'Вы проиграли.');
+        if (myRating) text += '  Рейтинг: ' + myRating.old + ' → ' + myRating.newR +
+            ' (' + sign + ratingChange + ')';
+
+        // Обновляем рейтинг в localStorage
+        if (myRating && currentUser) {
+            currentUser.rating = myRating.newR;
+            saveCurrentUser(currentUser);
+            initHeader();
+        }
+
+        showGameOver(title, text);
+    });
+
     hubConnection.start()
         .then(function () { return hubConnection.invoke('JoinGame', gameId); })
         .catch(function (e) { console.error('SignalR:', e); });
@@ -412,7 +449,67 @@ function showGameOver(title, text) {
     document.getElementById('gameover-modal').classList.add('open');
 }
 
-function viewProfile() {
-    document.getElementById('gameover-modal').classList.remove('open');
-    goToProfile(currentUser.userId);
+// ── Сдача ─────────────────────────────────────────
+function confirmResign() {
+    document.getElementById('resign-modal').classList.add('open');
+}
+
+function closeResignModal() {
+    document.getElementById('resign-modal').classList.remove('open');
+}
+
+async function doResign() {
+    closeResignModal();
+    stopTimer();
+
+    var winner    = myColor === 'w' ? 'black' : 'white';
+    var winnerId  = myColor === 'w' ? gameData.blackId : gameData.whiteId;
+
+    try {
+        await fetch('/api/Games/' + currentGameId + '/finish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ result: winner, winnerId: parseInt(winnerId) })
+        });
+        // GameFinished придёт через SignalR всем включая нас
+    } catch (e) {
+        toast('Ошибка при сдаче', 'error');
+    }
+}
+
+// ── Ничья ──────────────────────────────────────────
+async function offerDraw() {
+    if (!hubConnection) return;
+    try {
+        await hubConnection.invoke('OfferDraw', currentGameId);
+        toast('Предложение ничьей отправлено', 'success');
+    } catch (e) {
+        toast('Ошибка отправки предложения', 'error');
+    }
+}
+
+async function acceptDraw() {
+    document.getElementById('draw-offer-banner').classList.remove('visible');
+    stopTimer();
+
+    try {
+        await fetch('/api/Games/' + currentGameId + '/finish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ result: 'draw', winnerId: null })
+        });
+        // GameFinished придёт через SignalR
+    } catch (e) {
+        toast('Ошибка при принятии ничьей', 'error');
+    }
+}
+
+async function declineDraw() {
+    document.getElementById('draw-offer-banner').classList.remove('visible');
+    if (hubConnection) {
+        try {
+            await hubConnection.invoke('DeclineDraw', currentGameId);
+        } catch (e) { /* Hub метод опциональный */ }
+    }
+    toast('Вы отклонили ничью', 'success');
 }
