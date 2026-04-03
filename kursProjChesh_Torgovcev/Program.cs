@@ -5,17 +5,17 @@ using kursProjChesh_Torgovcev.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Добавляем контекст базы данных
+// контекст базы данных
 builder.Services.AddDbContext<ChessDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Добавляем сервисы
+// сервисы
 builder.Services.AddScoped<ChessService>();
 
-// ДОБАВЛЯЕМ SignalR
+// SignalR
 builder.Services.AddSignalR();
 
-// Добавляем контроллеры
+// контроллеры
 builder.Services.AddControllers();
 
 // Swagger
@@ -35,7 +35,7 @@ app.UseStaticFiles();
 
 app.UseAuthorization();
 
-// ДОБАВЛЯЕМ маршрут для Hub
+//  маршрут для Hub
 app.MapHub<GameHub>("/gameHub");
 
 app.MapControllers();

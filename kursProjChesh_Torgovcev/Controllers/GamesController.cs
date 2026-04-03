@@ -262,6 +262,48 @@ public async Task<IActionResult> FinishGame(int id, [FromBody] FinishGameRequest
 
     _dbContext.SaveChanges();
 
+    // Если игра была частью турнирного матча — завершаем матч автоматически
+    var tournamentMatch = _dbContext.TournamentMatches
+        .FirstOrDefault(m => m.GameId == id);
+
+    if (tournamentMatch != null && tournamentMatch.Status != "Completed")
+    {
+        // Определяем победителя матча
+        int? matchWinnerId = null;
+        if (request.Result == "white") matchWinnerId = game.WhitePlayerId;
+        else if (request.Result == "black") matchWinnerId = game.BlackPlayerId;
+        // При ничьей побеждает игрок 1 (Player1 = белые)
+        else matchWinnerId = game.WhitePlayerId;
+
+        tournamentMatch.WinnerId = matchWinnerId;
+        tournamentMatch.Status   = "Completed";
+
+        // Продвигаем победителя в следующий матч
+        if (tournamentMatch.NextMatchId != null)
+        {
+            var nextMatch = _dbContext.TournamentMatches.Find(tournamentMatch.NextMatchId);
+            if (nextMatch != null)
+            {
+                if (nextMatch.Player1Id == null) nextMatch.Player1Id = matchWinnerId;
+                else                             nextMatch.Player2Id = matchWinnerId;
+
+                if (nextMatch.Player1Id != null && nextMatch.Player2Id != null)
+                    nextMatch.Status = "Ready";
+            }
+        }
+        else if (tournamentMatch.IsFinal)
+        {
+            var tournament = _dbContext.Tournaments.Find(tournamentMatch.TournamentId);
+            if (tournament != null)
+            {
+                tournament.WinnerId = matchWinnerId;
+                tournament.Status   = "Completed";
+            }
+        }
+
+        _dbContext.SaveChanges();
+    }
+
     // Уведомляем через SignalR
     await _hubContext.Clients.Group($"game_{id}").SendAsync("GameFinished", new
     {

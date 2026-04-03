@@ -81,8 +81,58 @@ public class TournamentsController : ControllerBase
     }
 
     /// <summary>
-    /// Получить список турниров
+    /// Получить ВСЕ турниры (без фильтра по статусу)
     /// </summary>
+    [HttpGet("all")]
+    public async Task<IActionResult> GetAllTournaments()
+    {
+        var tournaments = await _dbContext.Tournaments
+            .OrderByDescending(t => t.CreatedAt)
+            .Select(t => new
+            {
+                t.Id,
+                t.Title,
+                t.Description,
+                t.Status,
+                t.MaxParticipants,
+                t.CurrentParticipants,
+                t.StartsAt,
+                t.TimeControlMinutes
+            })
+            .ToListAsync();
+
+        return Ok(tournaments);
+    }
+
+    /// <summary>
+    /// Покинуть турнир (отписаться)
+    /// </summary>
+    [HttpPost("{id}/leave")]
+    public async Task<IActionResult> LeaveTournament(int id, [FromBody] JoinTournamentRequest request)
+    {
+        var tournament = await _dbContext.Tournaments.FindAsync(id);
+        if (tournament == null)
+            return NotFound("Турнир не найден");
+
+        if (tournament.Status != "Registration")
+            return BadRequest("Турнир уже начался");
+
+        var participant = await _dbContext.TournamentParticipants
+            .FirstOrDefaultAsync(tp => tp.TournamentId == id && tp.UserId == request.UserId);
+
+        if (participant == null)
+            return BadRequest("Вы не являетесь участником");
+
+        _dbContext.TournamentParticipants.Remove(participant);
+        tournament.CurrentParticipants = Math.Max(0, tournament.CurrentParticipants - 1);
+
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { message = "Вы покинули турнир" });
+    }
+
+    /// <summary>
+    /// Получить список турниров</summary>
+
     [HttpGet("list")]
     public async Task<IActionResult> GetTournaments([FromQuery] string status = "Registration")
     {
@@ -115,7 +165,6 @@ public class TournamentsController : ControllerBase
             .Include(t => t.Participants)
             .ThenInclude(p => p.User)
             .FirstOrDefaultAsync(t => t.Id == id);
-
         if (tournament == null)
             return NotFound("Турнир не найден");
 
@@ -129,6 +178,12 @@ public class TournamentsController : ControllerBase
             tournament.CurrentParticipants,
             tournament.StartsAt,
             tournament.TimeControlMinutes,
+            tournament.TotalRounds,
+            tournament.CreatorId,
+            Winner = tournament.WinnerId.HasValue
+                ? _dbContext.Users.Where(u => u.Id == tournament.WinnerId)
+                    .Select(u => new { u.Id, u.Username }).FirstOrDefault()
+                : null,
             Participants = tournament.Participants.Select(p => new
             {
                 p.UserId,
@@ -187,6 +242,7 @@ public class TournamentsController : ControllerBase
                 tm.RoundNumber,
                 tm.MatchNumber,
                 tm.NextMatchId,
+                tm.GameId,
                 Player1 = tm.Player1 != null ? new { tm.Player1.Id, tm.Player1.Username } : null,
                 Player2 = tm.Player2 != null ? new { tm.Player2.Id, tm.Player2.Username } : null,
                 Winner = tm.Winner != null ? new { tm.Winner.Id, tm.Winner.Username } : null,
@@ -199,8 +255,62 @@ public class TournamentsController : ControllerBase
     }
 
     /// <summary>
-    /// Завершить матч и продвинуть победителя в следующий раунд
+    /// Начать матч — создать игру для двух участников
     /// </summary>
+    [HttpPost("{tournamentId}/matches/{matchId}/start")]
+    public async Task<IActionResult> StartMatch(int tournamentId, int matchId)
+    {
+        var match = await _dbContext.TournamentMatches
+            .Include(m => m.Player1)
+            .Include(m => m.Player2)
+            .Include(m => m.Tournament)
+            .FirstOrDefaultAsync(m => m.Id == matchId && m.TournamentId == tournamentId);
+
+        if (match == null)
+            return NotFound(new { error = "Матч не найден" });
+
+        if (match.Status == "InProgress")
+            return Ok(new { gameId = match.GameId, message = "Игра уже создана" });
+
+        if (match.Player1Id == null || match.Player2Id == null)
+            return BadRequest(new { error = "Оба игрока должны быть известны" });
+
+        // Создаём игру
+        var game = new Game
+        {
+            WhitePlayerId      = match.Player1Id.Value,
+            BlackPlayerId      = match.Player2Id.Value,
+            Status             = "Pending",
+            CurrentFEN         = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            TimeControlMinutes = match.Tournament.TimeControlMinutes,
+            WhiteTimeRemaining = match.Tournament.TimeControlMinutes * 60,
+            BlackTimeRemaining = match.Tournament.TimeControlMinutes * 60,
+            TournamentId       = tournamentId
+        };
+
+        _dbContext.Games.Add(game);
+        await _dbContext.SaveChangesAsync();
+
+        // Привязываем игру к матчу
+        match.GameId = game.Id;
+        match.Status = "InProgress";
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new
+        {
+            gameId      = game.Id,
+            whiteId     = match.Player1Id,
+            blackId     = match.Player2Id,
+            whiteName   = match.Player1!.Username,
+            blackName   = match.Player2!.Username,
+            timeMin     = match.Tournament.TimeControlMinutes,
+            message     = "Игра создана"
+        });
+    }
+
+    /// <summary>
+    /// Завершить матч и продвинуть победителя в следующий раунд</summary>
+
     [HttpPost("{tournamentId}/matches/{matchId}/complete")]
     public async Task<IActionResult> CompleteMatch(int tournamentId, int matchId, [FromBody] CompleteMatchRequest request)
     {
@@ -299,6 +409,11 @@ public class TournamentsController : ControllerBase
             {
                 match.WinnerId = match.Player1Id;
                 match.Status = "Completed";
+            }
+            // Оба игрока известны — матч готов к игре
+            else if (match.Player1Id != null && match.Player2Id != null)
+            {
+                match.Status = "Ready";
             }
         }
 

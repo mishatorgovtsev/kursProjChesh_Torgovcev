@@ -21,36 +21,27 @@ public class ChessDbContext : DbContext
 {
     base.OnModelCreating(modelBuilder);
 
-    // ============================================
-    // НАСТРОЙКА Tournament -> Creator
-    // ============================================
+   
     modelBuilder.Entity<Tournament>()
         .HasOne(t => t.Creator)
         .WithMany(u => u.CreatedTournaments)
         .HasForeignKey(t => t.CreatorId)
         .OnDelete(DeleteBehavior.Restrict);
 
-    // ============================================
-    // НАСТРОЙКА Tournament -> Winner
-    // ============================================
+    
     modelBuilder.Entity<Tournament>()
         .HasOne(t => t.Winner)
         .WithMany()
         .HasForeignKey(t => t.WinnerId)
         .OnDelete(DeleteBehavior.SetNull);
 
-    // ============================================
-    // НАСТРОЙКА TournamentMatch -> NextMatch
-    // ============================================
+    
     modelBuilder.Entity<TournamentMatch>()
         .HasOne(tm => tm.NextMatch)
         .WithMany()
         .HasForeignKey(tm => tm.NextMatchId)
         .OnDelete(DeleteBehavior.Restrict);
 
-    // ============================================
-    // ОСТАЛЬНЫЕ НАСТРОЙКИ (уже были)
-    // ============================================
     
     // Username и Email должны быть уникальными
     modelBuilder.Entity<User>()
