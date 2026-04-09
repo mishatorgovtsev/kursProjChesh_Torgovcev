@@ -6,7 +6,7 @@
 var currentUser   = null;
 var currentGameId = null;
 var board         = null;
-var game          = null;   // chess.js instance для валидации ходов
+var game          = null; 
 var isProcessing  = false;
     
 var pendingPromotion = null; // { source, target }

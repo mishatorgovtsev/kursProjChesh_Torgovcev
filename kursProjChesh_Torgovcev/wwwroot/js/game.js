@@ -6,7 +6,7 @@
 // ── Состояние игры ────────────────────────────────
 var currentGameId    = null;
 var board            = null;
-var game             = null;   // chess.js
+var game             = null;
 var isProcessing     = false;
 var pendingPromotion = null;   // { source, target }
 var hubConnection    = null;
