@@ -1,7 +1,7 @@
 using ChessPlatform.Data;
 using kursProjChesh_Torgovcev.services;
 using Microsoft.EntityFrameworkCore;
-using kursProjChesh_Torgovcev.Hubs; 
+using kursProjChesh_Torgovcev.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,10 +24,30 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// ── Автоматическое применение миграций при старте ──
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ChessDbContext>();
+    var retries = 10;
+    while (retries > 0)
+    {
+        try
+        {
+            db.Database.Migrate();
+            Console.WriteLine("✓ Миграции применены успешно");
+            break;
+        }
+        catch (Exception ex)
+        {
+            retries--;
+            Console.WriteLine($"БД недоступна, повтор через 3 сек... ({retries} попыток). {ex.Message}");
+            Thread.Sleep(3000);
+        }
+    }
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
-
-app.UseHttpsRedirection();
 
 // Отдаём index.html по адресу /
 app.UseDefaultFiles();
@@ -35,7 +55,7 @@ app.UseStaticFiles();
 
 app.UseAuthorization();
 
-//  маршрут для Hub
+// маршрут для Hub
 app.MapHub<GameHub>("/gameHub");
 
 app.MapControllers();

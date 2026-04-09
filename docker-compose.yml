@@ -1,0 +1,42 @@
+services:
+
+  # ── SQL Server ────────────────────────────────────
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: chess_db
+    environment:
+      SA_PASSWORD: "Chess@Pass123"
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Express"
+    ports:
+      - "1433:1433"
+    volumes:
+      - chess_db_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost",
+             "-U", "sa", "-P", "Chess@Pass123", "-Q", "SELECT 1", "-No"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── ASP.NET приложение ────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chess_app
+    ports:
+      - "5000:8080"
+    environment:
+      ConnectionStrings__DefaultConnection: >
+        Server=db,1433;Database=ChessPlatform;
+        User Id=sa;Password=Chess@Pass123;
+        TrustServerCertificate=True;
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+volumes:
+  chess_db_data:
