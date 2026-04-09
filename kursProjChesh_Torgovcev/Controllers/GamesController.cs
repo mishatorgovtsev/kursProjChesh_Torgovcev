@@ -244,8 +244,8 @@ public async Task<IActionResult> FinishGame(int id, [FromBody] FinishGameRequest
 
     // Сохраняем историю рейтинга
     _dbContext.RatingHistories.AddRange(
-        new RatingHistory { UserId = white.Id, GameId = id, OldRating = white.Rating, NewRating = newWhiteRating, RecordedAt = DateTime.Now },
-        new RatingHistory { UserId = black.Id, GameId = id, OldRating = black.Rating, NewRating = newBlackRating, RecordedAt = DateTime.Now }
+        new RatingHistory { UserId = white.Id, GameId = id, OldRating = white.Rating, NewRating = newWhiteRating, RatingChange = newWhiteRating - white.Rating, RecordedAt = DateTime.Now },
+        new RatingHistory { UserId = black.Id, GameId = id, OldRating = black.Rating, NewRating = newBlackRating, RatingChange = newBlackRating - black.Rating, RecordedAt = DateTime.Now }
     );
 
     white.Rating = newWhiteRating;

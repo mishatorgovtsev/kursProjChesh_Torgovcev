@@ -35,9 +35,8 @@ public class RatingHistory
     public int NewRating { get; set; }
 
     // Вычисляемое поле: изменение (может быть отрицательным)
-    [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
     [Column("rating_change")]
-    public int RatingChange => NewRating - OldRating;
+    public int RatingChange { get; set; }
 
     [Column("recorded_at")]
     public DateTime RecordedAt { get; set; } = DateTime.Now;
