@@ -6,9 +6,9 @@
 var currentUser   = null;
 var currentGameId = null;
 var board         = null;
-var game          = null; 
+var game          = null;
 var isProcessing  = false;
-    
+
 var pendingPromotion = null; // { source, target }
 var hubConnection = null;
 var myColor = 'w'; // цвет текущего игрока

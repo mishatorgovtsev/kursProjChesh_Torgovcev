@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель — Chess Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/common.css">
+    <style>
+        body { background: var(--bg); }
+
+        /* ── Login screen ── */
+        .login-screen {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            width: 360px;
+        }
+        .login-logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 22px;
+            color: var(--accent);
+            text-align: center;
+            margin-bottom: 6px;
+        }
+        .login-sub {
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 28px;
+        }
+
+        /* ── Admin layout ── */
+        .admin-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            width: 220px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 10;
+        }
+        .sidebar-logo {
+            padding: 24px 20px 16px;
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            color: var(--accent);
+            border-bottom: 1px solid var(--border);
+        }
+        .sidebar-logo span {
+            display: block;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 0;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all .15s;
+            border-left: 3px solid transparent;
+        }
+        .nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+        .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(201,168,76,.06); }
+        .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* ── Main content ── */
+        .admin-main {
+            margin-left: 220px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .admin-header {
+            padding: 20px 32px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .admin-header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 22px;
+            color: var(--text);
+        }
+        .admin-header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .admin-content {
+            padding: 28px 32px;
+            flex: 1;
+        }
+
+        /* ── Section ── */
+        .section { display: none; }
+        .section.active { display: block; }
+
+        /* ── Stats cards ── */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .stat-card .stat-val {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+        .stat-card .stat-lbl {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+        }
+        .stat-card .stat-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* ── Toolbar ── */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .toolbar input[type="text"],
+        .toolbar select {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+        }
+        .toolbar input[type="text"] { width: 220px; }
+        .toolbar input[type="text"]:focus,
+        .toolbar select:focus { border-color: var(--accent); }
+        .toolbar-spacer { flex: 1; }
+
+        /* ── Table ── */
+        .data-table {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .data-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .data-table thead th {
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,.02);
+            white-space: nowrap;
+        }
+        .data-table tbody tr {
+            border-bottom: 1px solid rgba(255,255,255,.04);
+            transition: background .12s;
+        }
+        .data-table tbody tr:last-child { border-bottom: none; }
+        .data-table tbody tr:hover { background: rgba(255,255,255,.025); }
+        .data-table tbody td {
+            padding: 12px 16px;
+            color: var(--text);
+            vertical-align: middle;
+        }
+
+        .td-muted { color: var(--text-muted) !important; font-size: 12px; }
+        .td-accent { color: var(--accent) !important; font-weight: 600; }
+        .td-green  { color: var(--green)  !important; font-weight: 600; }
+        .td-red    { color: var(--red)    !important; font-weight: 600; }
+
+        /* ── Action buttons in table ── */
+        .act-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+        .act-btn {
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .15s;
+            white-space: nowrap;
+        }
+        .act-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .act-btn.danger:hover { border-color: var(--red); color: var(--red); }
+        .act-btn.success:hover { border-color: var(--green); color: var(--green); }
+
+        /* ── Status badge ── */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-pending    { background: rgba(122,122,154,.15); color: var(--text-muted); }
+        .badge-active     { background: rgba(201,168,76,.15);  color: var(--accent); }
+        .badge-completed  { background: rgba(76,175,116,.12);  color: var(--green); }
+        .badge-reg        { background: rgba(85,119,204,.15);  color: #7799ee; }
+        .badge-blocked    { background: rgba(224,85,85,.12);   color: var(--red); }
+
+        /* ── Modal ── */
+        .admin-modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px 32px;
+            width: 420px;
+            max-width: 95vw;
+        }
+        .admin-modal h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            color: var(--accent);
+            margin-bottom: 20px;
+        }
+        .admin-modal .field { margin-bottom: 14px; }
+        .admin-modal .field label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .admin-modal .field input,
+        .admin-modal .field select {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+        }
+        .admin-modal .field input:focus,
+        .admin-modal .field select:focus { border-color: var(--accent); }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .modal-actions .btn { flex: 1; }
+
+        .empty-table {
+            padding: 48px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .loading-row td {
+            padding: 40px !important;
+            text-align: center;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Login ── -->
+<div class="login-screen" id="login-screen">
+    <div class="login-box">
+        <div class="login-logo">♟ Chess Platform</div>
+        <div class="login-sub">Панель администратора</div>
+        <div class="field">
+            <label>Логин</label>
+            <input type="text" id="admin-login" placeholder="admin"
+                   onkeydown="if(event.key==='Enter')doAdminLogin()">
+        </div>
+        <div class="field">
+            <label>Пароль</label>
+            <input type="password" id="admin-pass" placeholder="••••••••"
+                   onkeydown="if(event.key==='Enter')doAdminLogin()">
+        </div>
+        <div id="login-err" style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:10px"></div>
+        <button class="btn btn-primary" style="width:100%;padding:12px" onclick="doAdminLogin()">
+            Войти
+        </button>
+    </div>
+</div>
+
+<!-- ── Admin panel ── -->
+<div class="admin-layout" id="admin-panel" style="display:none">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            ♟ Chess Platform
+            <span>Admin Panel</span>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-item active" onclick="showSection('dashboard')" id="nav-dashboard">
+                <span class="nav-icon">📊</span> Дашборд
+            </div>
+            <div class="nav-item" onclick="showSection('users')" id="nav-users">
+                <span class="nav-icon">👤</span> Пользователи
+            </div>
+            <div class="nav-item" onclick="showSection('games')" id="nav-games">
+                <span class="nav-icon">♟</span> Игры
+            </div>
+            <div class="nav-item" onclick="showSection('tournaments')" id="nav-tournaments">
+                <span class="nav-icon">🏆</span> Турниры
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            <button class="btn btn-danger" style="width:100%;font-size:13px;padding:8px"
+                    onclick="adminLogout()">Выйти</button>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="admin-main">
+        <div class="admin-header">
+            <h1 id="section-title">Дашборд</h1>
+            <div class="admin-header-right">
+                <span id="admin-time"></span>
+                <a href="/" target="_blank" class="btn btn-ghost" style="font-size:13px;padding:6px 12px">
+                    На сайт →
+                </a>
+            </div>
+        </div>
+
+        <div class="admin-content">
+
+            <!-- Дашборд -->
+            <div class="section active" id="section-dashboard">
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-val" id="stat-users">—</div>
+                        <div class="stat-lbl">Пользователей</div>
+                        <div class="stat-sub" id="stat-users-active"></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-val" id="stat-games">—</div>
+                        <div class="stat-lbl">Игр всего</div>
+                        <div class="stat-sub" id="stat-games-active"></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-val" id="stat-completed">—</div>
+                        <div class="stat-lbl">Завершено игр</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-val" id="stat-tournaments">—</div>
+                        <div class="stat-lbl">Турниров</div>
+                        <div class="stat-sub" id="stat-tournaments-active"></div>
+                    </div>
+                </div>
+                <div style="color:var(--text-muted);font-size:14px;text-align:center;padding:20px">
+                    Выберите раздел в меню слева для управления данными.
+                </div>
+            </div>
+
+            <!-- Пользователи -->
+            <div class="section" id="section-users">
+                <div class="toolbar">
+                    <input type="text" id="user-search" placeholder="Поиск по нику или email…"
+                           oninput="loadUsers()">
+                    <select id="user-sort" onchange="loadUsers()">
+                        <option value="rating">По рейтингу</option>
+                        <option value="username">По имени</option>
+                        <option value="games">По играм</option>
+                        <option value="created">По дате</option>
+                    </select>
+                    <select id="user-order" onchange="loadUsers()">
+                        <option value="desc">↓ Убыв.</option>
+                        <option value="asc">↑ Возр.</option>
+                    </select>
+                    <div class="toolbar-spacer"></div>
+                    <button class="btn btn-primary" onclick="openModal('add-user')">
+                        + Добавить пользователя
+                    </button>
+                </div>
+                <div class="data-table">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Никнейм</th>
+                            <th>Email</th>
+                            <th>Рейтинг</th>
+                            <th>Игры</th>
+                            <th>В/П/Н</th>
+                            <th>Статус</th>
+                            <th>Дата рег.</th>
+                            <th>Действия</th>
+                        </tr>
+                        </thead>
+                        <tbody id="users-tbody">
+                        <tr class="loading-row"><td colspan="9">Загрузка…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Игры -->
+            <div class="section" id="section-games">
+                <div class="toolbar">
+                    <input type="text" id="game-user-filter" placeholder="ID пользователя…"
+                           style="width:160px" oninput="loadGames()">
+                    <select id="game-status-filter" onchange="loadGames()">
+                        <option value="">Все статусы</option>
+                        <option value="Pending">Ожидание</option>
+                        <option value="InProgress">Идёт</option>
+                        <option value="Completed">Завершена</option>
+                    </select>
+                    <select id="game-sort" onchange="loadGames()">
+                        <option value="created">По дате создания</option>
+                        <option value="ended">По дате завершения</option>
+                    </select>
+                    <select id="game-order" onchange="loadGames()">
+                        <option value="desc">↓ Убыв.</option>
+                        <option value="asc">↑ Возр.</option>
+                    </select>
+                    <div class="toolbar-spacer"></div>
+                    <button class="btn btn-primary" onclick="openModal('add-game')">
+                        + Создать игру
+                    </button>
+                </div>
+                <div class="data-table">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Белые</th>
+                            <th>Чёрные</th>
+                            <th>Победитель</th>
+                            <th>Статус</th>
+                            <th>Время</th>
+                            <th>Создана</th>
+                            <th>Завершена</th>
+                            <th>Действия</th>
+                        </tr>
+                        </thead>
+                        <tbody id="games-tbody">
+                        <tr class="loading-row"><td colspan="9">Загрузка…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Турниры -->
+            <div class="section" id="section-tournaments">
+                <div class="toolbar">
+                    <select id="t-status-filter" onchange="loadTournaments()">
+                        <option value="">Все статусы</option>
+                        <option value="Registration">Регистрация</option>
+                        <option value="InProgress">Идёт</option>
+                        <option value="Completed">Завершён</option>
+                    </select>
+                    <select id="t-sort" onchange="loadTournaments()">
+                        <option value="created">По дате создания</option>
+                        <option value="starts">По дате начала</option>
+                        <option value="title">По названию</option>
+                    </select>
+                    <select id="t-order" onchange="loadTournaments()">
+                        <option value="desc">↓ Убыв.</option>
+                        <option value="asc">↑ Возр.</option>
+                    </select>
+                </div>
+                <div class="data-table">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Создатель</th>
+                            <th>Участники</th>
+                            <th>Время</th>
+                            <th>Статус</th>
+                            <th>Начало</th>
+                            <th>Победитель</th>
+                            <th>Действия</th>
+                        </tr>
+                        </thead>
+                        <tbody id="tournaments-tbody">
+                        <tr class="loading-row"><td colspan="9">Загрузка…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ── Модалы ── -->
+<div class="modal-overlay" id="modal-overlay">
+    <!-- Добавить пользователя -->
+    <div class="admin-modal" id="modal-add-user" style="display:none">
+        <h3>Добавить пользователя</h3>
+        <div class="field"><label>Никнейм</label><input type="text" id="new-username" placeholder="username"></div>
+        <div class="field"><label>Email</label><input type="email" id="new-email" placeholder="user@mail.com"></div>
+        <div class="field"><label>Пароль</label><input type="password" id="new-password" placeholder="••••••••"></div>
+        <div class="field"><label>Рейтинг</label><input type="number" id="new-rating" value="1200" min="0" max="3000"></div>
+        <div id="add-user-err" style="color:var(--red);font-size:13px;min-height:16px"></div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="submitAddUser()">Создать</button>
+        </div>
+    </div>
+
+    <!-- Изменить рейтинг -->
+    <div class="admin-modal" id="modal-edit-rating" style="display:none">
+        <h3>Изменить рейтинг</h3>
+        <div class="field"><label>Пользователь</label><input type="text" id="er-username" readonly></div>
+        <div class="field"><label>Новый рейтинг</label><input type="number" id="er-rating" min="0" max="3000"></div>
+        <input type="hidden" id="er-userid">
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="submitEditRating()">Сохранить</button>
+        </div>
+    </div>
+
+    <!-- Создать игру -->
+    <div class="admin-modal" id="modal-add-game" style="display:none">
+        <h3>Создать игру</h3>
+        <div class="field"><label>ID белого игрока</label><input type="number" id="ag-white" placeholder="ID"></div>
+        <div class="field"><label>ID чёрного игрока</label><input type="number" id="ag-black" placeholder="ID"></div>
+        <div class="field"><label>Контроль времени (мин)</label>
+            <select id="ag-time">
+                <option value="5">5 мин</option>
+                <option value="10" selected>10 мин</option>
+                <option value="15">15 мин</option>
+                <option value="30">30 мин</option>
+            </select>
+        </div>
+        <div id="add-game-err" style="color:var(--red);font-size:13px;min-height:16px"></div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="submitAddGame()">Создать</button>
+        </div>
+    </div>
+
+    <!-- Завершить игру -->
+    <div class="admin-modal" id="modal-finish-game" style="display:none">
+        <h3>Завершить игру</h3>
+        <div class="field">
+            <label>Победитель</label>
+            <select id="fg-result">
+                <option value="white">Белые победили</option>
+                <option value="black">Чёрные победили</option>
+                <option value="draw">Ничья</option>
+            </select>
+        </div>
+        <input type="hidden" id="fg-gameid">
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="submitFinishGame()">Завершить</button>
+        </div>
+    </div>
+
+    <!-- Сменить статус турнира -->
+    <div class="admin-modal" id="modal-t-status" style="display:none">
+        <h3>Сменить статус турнира</h3>
+        <div class="field">
+            <label>Новый статус</label>
+            <select id="ts-status">
+                <option value="Registration">Регистрация</option>
+                <option value="InProgress">Идёт</option>
+                <option value="Completed">Завершён</option>
+            </select>
+        </div>
+        <input type="hidden" id="ts-id">
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="submitTournamentStatus()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/js/common.js"></script>
+<script src="/js/admin.js"></script>
+</body>
+</html>

@@ -48,6 +48,8 @@ Package.resolved
 *.dbmdl
 *.jfm
 *.db
+*.db-shm
+*.db-wal
 
 ## SQL Server files
 *.mdf
