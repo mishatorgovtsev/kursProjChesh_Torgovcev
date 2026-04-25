@@ -19,10 +19,11 @@ public class GameHub : Hub
     /// <summary>
     /// Присоединиться к игре (комната)
     /// </summary>
-    public async Task JoinGame(int gameId)
+    public async Task JoinGame(int gameId, int userId = 0)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, $"game_{gameId}");
-        await Clients.Group($"game_{gameId}").SendAsync("PlayerJoined", Context.ConnectionId);
+        // Уведомляем ДРУГИХ игроков (не себя) что кто-то подключился
+        await Clients.OthersInGroup($"game_{gameId}").SendAsync("PlayerJoined", new { userId });
     }
 
     /// <summary>
@@ -83,6 +84,30 @@ public class GameHub : Hub
     public async Task DeclineDraw(int gameId)
     {
         await Clients.OthersInGroup($"game_{gameId}").SendAsync("DrawDeclined");
+    }
+
+    /// <summary>
+    /// Запросить отмену хода у противника
+    /// </summary>
+    public async Task RequestUndo(int gameId)
+    {
+        await Clients.OthersInGroup($"game_{gameId}").SendAsync("UndoRequested");
+    }
+
+    /// <summary>
+    /// Противник принял отмену хода
+    /// </summary>
+    public async Task AcceptUndo(int gameId)
+    {
+        await Clients.OthersInGroup($"game_{gameId}").SendAsync("UndoAccepted");
+    }
+
+    /// <summary>
+    /// Противник отклонил отмену хода
+    /// </summary>
+    public async Task DeclineUndo(int gameId)
+    {
+        await Clients.OthersInGroup($"game_{gameId}").SendAsync("UndoDeclined");
     }
 
     /// <summary>

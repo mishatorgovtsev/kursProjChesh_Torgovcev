@@ -131,7 +131,12 @@ public class GamesController : ControllerBase
     [HttpGet("{id}")]
     public IActionResult GetGame(int id)
     {
-        var game = _dbContext.Games.Find(id);
+        var game = _dbContext.Games
+            .Include(g => g.WhitePlayer)
+            .Include(g => g.BlackPlayer)
+            .Include(g => g.Moves)
+            .FirstOrDefault(g => g.Id == id);
+
         if (game == null)
             return NotFound(new { success = false, error = "Игра не найдена" });
 
@@ -143,7 +148,14 @@ public class GamesController : ControllerBase
             game.WhiteTimeRemaining,
             game.BlackTimeRemaining,
             game.WhitePlayerId,
-            game.BlackPlayerId
+            game.BlackPlayerId,
+            game.TimeControlMinutes,
+            WhiteName = game.WhitePlayer.Username,
+            BlackName = game.BlackPlayer.Username,
+            Moves = game.Moves
+                .OrderBy(m => m.MoveNumber)
+                .Select(m => new { m.MoveNumber, m.PlayerColor, m.MoveNotation, m.FENAfterMove })
+                .ToList()
         });
     }
 

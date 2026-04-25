@@ -4,9 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Игра — Chess Platform</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <link rel="stylesheet" href="/css/fonts.css">
+    <link rel="stylesheet" href="/lib/chessboard-js/chessboardjs-1.0.0/css/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="/css/common.css">
     <style>
         /* ── Game layout ── */
@@ -306,6 +305,15 @@
                 </div>
             </div>
 
+            <!-- Undo request banner (появляется когда противник просит отменить ход) -->
+            <div class="draw-offer-banner" id="undo-request-banner" style="border-color:rgba(201,168,76,.35);background:rgba(201,168,76,.08)">
+                <div class="draw-offer-text">↩ Противник просит отменить ход</div>
+                <div class="draw-offer-actions">
+                    <button class="btn btn-primary" onclick="acceptUndo()">Разрешить</button>
+                    <button class="btn btn-ghost"   onclick="declineUndo()">Отказать</button>
+                </div>
+            </div>
+
             <!-- Действия -->
             <div class="game-actions">
                 <button class="btn btn-ghost" onclick="undoMove()">↩ Отменить ход</button>
@@ -358,10 +366,10 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+<script src="/lib/jquery/jquery-3.6.0.min.js"></script>
+<script src="/lib/chess.js/chess.min.js"></script>
+<script src="/lib/chessboard-js/chessboardjs-1.0.0/js/chessboard-1.0.0.min.js"></script>
+<script src="/lib/signalr/signalr.min.js"></script>
 <script src="/js/common.js"></script>
 <script src="/js/game.js"></script>
 </body>

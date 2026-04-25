@@ -337,7 +337,7 @@ function initBoard() {
         position: 'start',
         draggable: true,
         dropOffBoard: 'snapback',
-        pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+        pieceTheme: '/lib/chessboard-js/chessboardjs-1.0.0/img/chesspieces/wikipedia/{piece}.png',
         orientation: orientation,
         onDragStart: onDragStart,
         onDrop: onDrop,

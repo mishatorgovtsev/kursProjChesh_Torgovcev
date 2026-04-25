@@ -60,7 +60,8 @@ function goToGame(gameId, whiteId, blackId, whiteName, blackName, timeMin, train
         timeMin:      timeMin || 10,
         trainingMode: trainingMode || false
     }));
-    window.location.href = '/game.html';
+    // gameId в URL — для восстановления после обновления страницы
+    window.location.href = '/game.html?gameId=' + gameId;
 }
 
 // ── Инициализация header ──────────────────────────

@@ -32,36 +32,42 @@ document.addEventListener('DOMContentLoaded', function () {
 
     initHeader();
 
+    // Берём gameId из URL
+    var urlParams = new URLSearchParams(window.location.search);
+    var urlGameId = parseInt(urlParams.get('gameId'));
+
     // Загружаем параметры игры из sessionStorage
     var raw = sessionStorage.getItem('chess_game');
-    if (!raw) {
+    if (raw) {
+        try { gameData = JSON.parse(raw); } catch (e) { gameData = null; }
+    }
+
+    if (!urlGameId && !gameData) {
         toast('Игра не найдена', 'error');
         setTimeout(function () { window.location.href = '/'; }, 1500);
         return;
     }
 
-    try {
-        gameData = JSON.parse(raw);
-    } catch (e) {
-        window.location.href = '/';
-        return;
-    }
-
-    // Определяем цвет текущего игрока — parseInt чтобы избежать '5' === 5 → false
-    myColor = (parseInt(gameData.whiteId) === parseInt(currentUser.userId)) ? 'w' : 'b';
-
-    startGame();
+    // ВСЕГДА восстанавливаем позицию с сервера — это единственный источник правды
+    restoreGameFromServer(urlGameId || parseInt(gameData.gameId));
 });
 
 // ── Запуск игры ───────────────────────────────────
 function startGame() {
     currentGameId = gameData.gameId;
-    moveHistory   = [];
-    currentTurn   = 'w';
 
-    var timeSec  = (gameData.timeMin || 10) * 60;
-    whiteTimeSec = timeSec;
-    blackTimeSec = timeSec;
+    // Не сбрасываем таймеры и историю если они уже установлены из restoreGameFromServer
+    if (!whiteTimeSec && !blackTimeSec) {
+        var timeSec  = (gameData.timeMin || 10) * 60;
+        whiteTimeSec = timeSec;
+        blackTimeSec = timeSec;
+    }
+    if (!moveHistory || !moveHistory.length) {
+        moveHistory = [];
+    }
+    if (!currentTurn) {
+        currentTurn = 'w';
+    }
 
     var whiteName = gameData.whiteName || 'Белые';
     var blackName = gameData.blackName || 'Чёрные';
@@ -106,9 +112,11 @@ function startGame() {
     sideWhite.onclick = function () { if (gameData.whiteId) goToProfile(gameData.whiteId); };
     sideBlack.onclick = function () { if (gameData.blackId) goToProfile(gameData.blackId); };
 
-    // История ходов — очистить
-    document.getElementById('moves-list').innerHTML =
-        '<span style="color:var(--text-muted);font-size:13px">Ходов ещё нет</span>';
+    // История ходов — очищаем только если пустая (не при восстановлении)
+    if (!moveHistory || !moveHistory.length) {
+        document.getElementById('moves-list').innerHTML =
+            '<span style="color:var(--text-muted);font-size:13px">Ходов ещё нет</span>';
+    }
 
     initBoard();
     startTimer();
@@ -128,7 +136,7 @@ function initBoard() {
         position:    'start',
         draggable:   true,
         dropOffBoard:'snapback',
-        pieceTheme:  'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+        pieceTheme:  '/lib/chessboard-js/chessboardjs-1.0.0/img/chesspieces/wikipedia/{piece}.png',
         orientation: orientation,
         onDragStart: onDragStart,
         onDrop:      onDrop,
@@ -139,8 +147,7 @@ function initBoard() {
 function onDragStart(source, piece) {
     if (game && game.game_over()) return false;
 
-    // В тренировочном режиме разрешаем ходить за обоих
-    // (training-mode чекбокса нет на game.html, он был в лобби — передаём через sessionStorage)
+    // В тренировочном режиме разрешаем ходить за обоих без ограничений по очерёдности
     if (gameData && gameData.trainingMode) return true;
 
     if (currentTurn !== myColor) return false;
@@ -210,14 +217,16 @@ function connectToHub(gameId) {
         }
     });
 
+    // MoveUndone — приходит всем, синхронизируем позицию с сервером
     hubConnection.on('MoveUndone', function (data) {
-        if (game) { game.undo(); board.position(game.fen()); }
-        else board.position(data.fen);
-        // Убираем последний ход из истории
+        if (data.fen) {
+            if (game) { game.load(data.fen); board.position(game.fen()); }
+            else board.position(data.fen);
+        }
         if (moveHistory.length > 0) {
             var last = moveHistory[moveHistory.length - 1];
             if (last.b) { last.b = null; currentTurn = 'b'; }
-            else { moveHistory.pop(); currentTurn = 'w'; }
+            else        { moveHistory.pop(); currentTurn = 'w'; }
             renderMoveHistory();
         }
         document.getElementById('turn-name').textContent = currentTurn === 'w' ? 'Белые' : 'Чёрные';
@@ -225,8 +234,12 @@ function connectToHub(gameId) {
         toast('Ход отменён', 'success');
     });
 
-    hubConnection.on('PlayerJoined', function () { toast('Противник подключился!', 'success'); });
-    hubConnection.on('PlayerLeft',   function () { toast('Противник отключился', 'error'); });
+    hubConnection.on('PlayerJoined', function (data) {
+        // Не показываем "подключился" если это мы сами переподключились
+        if (data && data.userId === currentUser.userId) return;
+        toast('Противник подключился!', 'success');
+    });
+    hubConnection.on('PlayerLeft', function () { toast('Противник отключился', 'error'); });
 
     // Противник предлагает ничью
     hubConnection.on('DrawOffered', function () {
@@ -236,6 +249,21 @@ function connectToHub(gameId) {
     // Противник отклонил ничью
     hubConnection.on('DrawDeclined', function () {
         toast('Противник отклонил ничью', 'error');
+    });
+
+    // Противник просит отменить ход — показываем баннер
+    hubConnection.on('UndoRequested', function () {
+        document.getElementById('undo-request-banner').classList.add('visible');
+    });
+
+    // Наш запрос на откат принят — применяем откат через API
+    hubConnection.on('UndoAccepted', function () {
+        doUndoAfterAccept();
+    });
+
+    // Наш запрос на откат отклонён
+    hubConnection.on('UndoDeclined', function () {
+        toast('Противник отказал в отмене хода', 'error');
     });
 
     // Игра завершена (сервер прислал после /finish)
@@ -266,7 +294,7 @@ function connectToHub(gameId) {
     });
 
     hubConnection.start()
-        .then(function () { return hubConnection.invoke('JoinGame', gameId); })
+        .then(function () { return hubConnection.invoke('JoinGame', gameId, currentUser.userId); })
         .catch(function (e) { console.error('SignalR:', e); });
 }
 
@@ -281,6 +309,13 @@ async function selectPromotion(piece) {
 
 async function sendMove(source, target, promotion) {
     isProcessing = true;
+
+    // В тренировочном режиме цвет берём из самой фигуры
+    var pieceColor = myColor;
+    if (gameData && gameData.trainingMode && game) {
+        var p = game.get(source);
+        if (p) pieceColor = p.color;
+    }
     try {
         var res = await fetch('/api/Games/' + currentGameId + '/move', {
             method: 'POST',
@@ -288,7 +323,7 @@ async function sendMove(source, target, promotion) {
             body: JSON.stringify({
                 from:      source,
                 to:        target,
-                color:     myColor === 'w' ? 'white' : 'black',
+                color:     pieceColor === 'w' ? 'white' : 'black',
                 promotion: promotion,
                 userId:    currentUser.userId
             })
@@ -320,26 +355,53 @@ async function sendMove(source, target, promotion) {
     isProcessing = false;
 }
 
+// ── Отмена хода — запрос к противнику ───────────
 async function undoMove() {
-    if (!currentGameId) return;
+    if (!currentGameId || !hubConnection) return;
+
+    // Нельзя запросить если ходов нет
+    if (!moveHistory.length) {
+        toast('Нет ходов для отмены', 'error');
+        return;
+    }
+
+    try {
+        await hubConnection.invoke('RequestUndo', currentGameId);
+        toast('Запрос на отмену хода отправлен противнику…', 'success');
+    } catch (e) {
+        toast('Ошибка отправки запроса', 'error');
+    }
+}
+
+// Вызывается после того как противник принял запрос
+async function doUndoAfterAccept() {
     try {
         var res  = await fetch('/api/Games/' + currentGameId + '/undo', { method: 'POST' });
         var data = await res.json();
-        if (data.success) {
-            if (game) game.undo();
-            board.position(game ? game.fen() : data.fen);
-            if (moveHistory.length > 0) {
-                var last = moveHistory[moveHistory.length - 1];
-                if (last.b) { last.b = null; currentTurn = 'b'; }
-                else { moveHistory.pop(); currentTurn = 'w'; }
-                renderMoveHistory();
-            }
-            document.getElementById('turn-name').textContent = currentTurn === 'w' ? 'Белые' : 'Чёрные';
-            updateTimerDisplay();
-            toast('Ход отменён', 'success');
-        } else {
-            toast(data.error || 'Нет ходов для отмены', 'error');
+        if (!data.success) {
+            toast(data.error || 'Ошибка отмены', 'error');
         }
+        // Позиция обновится через MoveUndone от SignalR
+    } catch (e) {
+        toast('Ошибка сети', 'error');
+    }
+}
+
+// Противник принимает нашу просьбу об откате
+async function acceptUndo() {
+    document.getElementById('undo-request-banner').classList.remove('visible');
+    try {
+        await hubConnection.invoke('AcceptUndo', currentGameId);
+    } catch (e) {
+        toast('Ошибка', 'error');
+    }
+}
+
+// Противник отклоняет нашу просьбу об откате
+async function declineUndo() {
+    document.getElementById('undo-request-banner').classList.remove('visible');
+    try {
+        await hubConnection.invoke('DeclineUndo', currentGameId);
     } catch (e) {
         toast('Ошибка', 'error');
     }
@@ -512,4 +574,96 @@ async function declineDraw() {
         } catch (e) { /* Hub метод опциональный */ }
     }
     toast('Вы отклонили ничью', 'success');
+}
+
+// ── Восстановление игры после обновления страницы ─
+async function restoreGameFromServer(gameId) {
+    try {
+        var res = await fetch('/api/Games/' + gameId);
+        if (!res.ok) {
+            toast('Игра не найдена', 'error');
+            setTimeout(function () { window.location.href = '/'; }, 1500);
+            return;
+        }
+        var data = await res.json();
+
+        // Если игра завершена — показываем результат и не продолжаем
+        if (data.status === 'Completed') {
+            gameData = {
+                gameId:    data.id,
+                whiteId:   data.whitePlayerId,
+                blackId:   data.blackPlayerId,
+                whiteName: data.whiteName,
+                blackName: data.blackName,
+                timeMin:   data.timeControlMinutes || 10
+            };
+            myColor = (parseInt(gameData.whiteId) === parseInt(currentUser.userId)) ? 'w' : 'b';
+            startGame();
+            if (data.currentFEN && game) { game.load(data.currentFEN); board.position(game.fen()); }
+            showGameOver('Игра завершена', 'Партия уже окончена.');
+            return;
+        }
+
+        // Восстанавливаем gameData — сохраняем trainingMode из старого sessionStorage
+        var oldTrainingMode = gameData && gameData.trainingMode;
+        gameData = {
+            gameId:       data.id,
+            whiteId:      data.whitePlayerId,
+            blackId:      data.blackPlayerId,
+            whiteName:    data.whiteName,
+            blackName:    data.blackName,
+            timeMin:      data.timeControlMinutes || 10,
+            trainingMode: oldTrainingMode || false
+        };
+
+        sessionStorage.setItem('chess_game', JSON.stringify(gameData));
+        myColor = (parseInt(gameData.whiteId) === parseInt(currentUser.userId)) ? 'w' : 'b';
+
+        // Устанавливаем таймеры ДО startGame чтобы он не перезаписал их
+        whiteTimeSec = data.whiteTimeRemaining || gameData.timeMin * 60;
+        blackTimeSec = data.blackTimeRemaining || gameData.timeMin * 60;
+
+        // Восстанавливаем историю ходов ДО startGame
+        moveHistory = [];
+        if (data.moves && data.moves.length) {
+            data.moves.forEach(function (m) {
+                if (m.playerColor === 'w') {
+                    moveHistory.push({ w: m.moveNotation, b: null });
+                } else {
+                    if (moveHistory.length > 0) {
+                        moveHistory[moveHistory.length - 1].b = m.moveNotation;
+                    }
+                }
+            });
+
+            // Определяем чей ход по последнему сделанному ходу
+            var lastMove = data.moves[data.moves.length - 1];
+            currentTurn = lastMove.playerColor === 'w' ? 'b' : 'w';
+        }
+
+        // Запускаем игру (инициализирует доску, интерфейс, SignalR)
+        startGame();
+
+        // После startGame восстанавливаем позицию из FEN
+        if (data.currentFEN && game) {
+            game.load(data.currentFEN);
+            board.position(game.fen());
+        }
+
+        // Обновляем отображение хода и таймеров
+        document.getElementById('turn-name').textContent = currentTurn === 'w' ? 'Белые' : 'Чёрные';
+        updateTimerDisplay();
+
+        // Рендерим историю ходов
+        if (moveHistory.length) renderMoveHistory();
+
+        if (data.moves && data.moves.length > 0) {
+            toast('Игра восстановлена (' + data.moves.length + ' ходов)', 'success');
+        }
+
+    } catch (e) {
+        console.error('Ошибка восстановления:', e);
+        toast('Ошибка восстановления игры', 'error');
+        setTimeout(function () { window.location.href = '/'; }, 2000);
+    }
 }
